@@ -1,0 +1,2619 @@
+<!doctype html>
+<!-- authoring-only: Color Cards product analytics dashboard draft (synthetic data, no network, no game saves). -->
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Color Cards Analytics</title>
+  <style>
+/* authoring-only: product analytics dashboard draft; not part of the player build. */
+/* Layout: fixed navy sidebar of tabs, one scrolling column of filter bar, KPI tiles, chart and tables. */
+:root {
+  --nav: #0f1b33;
+  --nav-active: #1e3354;
+  --nav-text: #c9d3e4;
+  --nav-muted: #7d8aa3;
+  --nav-strong: #ffffff;
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --surface-soft: #f6f8fb;
+  --control: #ffffff;
+  --hover: #f8fafd;
+  --line: #e3e8f0;
+  --text: #17202f;
+  --text-2: #4f5b6e;
+  --muted: #7a8599;
+  --accent: #2a78d6;
+  --accent-soft: #e8f0fb;
+  --on-accent: #ffffff;
+  --paid: #2a78d6;
+  --organic: #eb6834;
+  --s3: #1baf7a;
+  --track: #edf1f6;
+  --drop: #b34a2b;
+  --hot: #fff6f2;
+  --warn-bg: #fdf6e7;
+  --warn-line: #f1e2bf;
+  --warn-text: #8a5a12;
+  --tip-bg: #17202f;
+  --tip-text: #ffffff;
+  --heat-lo: #eaf1fb;
+  --heat-hi: #1f52a0;
+  --heat-text-hi: #ffffff;
+  --radius: 14px;
+}
+/* Dark theme redefines tokens only; the system setting applies unless the viewer picked light. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --nav: #0a111f;
+    --nav-active: #1c2c48;
+    --nav-text: #c9d3e4;
+    --nav-muted: #7d8aa3;
+    --nav-strong: #ffffff;
+    --bg: #0f141c;
+    --surface: #161d29;
+    --surface-soft: #1c2433;
+    --control: #1c2433;
+    --hover: #1d2635;
+    --line: #2a3445;
+    --text: #e6ebf3;
+    --text-2: #b5bfce;
+    --muted: #8a95a8;
+    --accent: #3987e5;
+    --accent-soft: #1d3150;
+    --on-accent: #ffffff;
+    --paid: #3987e5;
+    --organic: #d95926;
+    --s3: #199e70;
+    --track: #253042;
+    --drop: #f08a68;
+    --hot: rgba(240, 138, 104, 0.12);
+    --warn-bg: #2a2416;
+    --warn-line: #4a3d1f;
+    --warn-text: #e9c27a;
+    --tip-bg: #e6ebf3;
+    --tip-text: #0f141c;
+    --heat-lo: #1b2638;
+    --heat-hi: #5d9ce9;
+    --heat-text-hi: #0b1220;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --nav: #0a111f;
+  --nav-active: #1c2c48;
+  --nav-text: #c9d3e4;
+  --nav-muted: #7d8aa3;
+  --nav-strong: #ffffff;
+  --bg: #0f141c;
+  --surface: #161d29;
+  --surface-soft: #1c2433;
+  --control: #1c2433;
+  --hover: #1d2635;
+  --line: #2a3445;
+  --text: #e6ebf3;
+  --text-2: #b5bfce;
+  --muted: #8a95a8;
+  --accent: #3987e5;
+  --accent-soft: #1d3150;
+  --on-accent: #ffffff;
+  --paid: #3987e5;
+  --organic: #d95926;
+  --s3: #199e70;
+  --track: #253042;
+  --drop: #f08a68;
+  --hot: rgba(240, 138, 104, 0.12);
+  --warn-bg: #2a2416;
+  --warn-line: #4a3d1f;
+  --warn-text: #e9c27a;
+  --tip-bg: #e6ebf3;
+  --tip-text: #0f141c;
+  --heat-lo: #1b2638;
+  --heat-hi: #5d9ce9;
+  --heat-text-hi: #0b1220;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+button, select, input { font: inherit; color: inherit; }
+
+.app { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 100vh; }
+
+/* Sidebar */
+.nav {
+  background: var(--nav);
+  color: var(--nav-text);
+  padding: 28px 14px 20px;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.brand { padding: 0 10px 26px; }
+.brand b { display: block; color: var(--nav-strong); font-size: 22px; letter-spacing: -0.02em; }
+.brand span { display: block; margin-top: 4px; font-size: 11px; letter-spacing: 0.22em; color: var(--nav-muted); font-weight: 600; }
+.nav-label { padding: 0 10px 10px; font-size: 11px; letter-spacing: 0.16em; color: var(--nav-muted); font-weight: 600; }
+.nav-list { display: flex; flex-direction: column; gap: 2px; }
+.nav-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--nav-text);
+  cursor: pointer;
+  font-size: 14.5px;
+}
+.nav-item:hover { background: rgba(255, 255, 255, 0.05); }
+.nav-item.active { background: var(--nav-active); color: var(--nav-strong); font-weight: 600; }
+.nav-item small { font-size: 11px; color: var(--nav-muted); font-variant-numeric: tabular-nums; }
+.nav-foot { margin-top: auto; padding: 0 10px; font-size: 12px; color: var(--nav-muted); line-height: 1.7; }
+
+/* Main */
+.main { padding: 26px 30px 60px; min-width: 0; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.page-head h1 { margin: 0; font-size: 24px; letter-spacing: -0.02em; }
+.page-head p { margin: 4px 0 0; color: var(--muted); }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.notice { background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-line); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; }
+
+/* Filters */
+.filters { padding: 16px 18px; margin-bottom: 16px; }
+.filter-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; }
+.field select, .field input {
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--control);
+  padding: 0 10px;
+  min-width: 120px;
+}
+.field input[type="number"] { width: 72px; min-width: 0; }
+.field input[type="date"] { min-width: 140px; }
+.range { display: flex; gap: 6px; align-items: center; color: var(--muted); }
+.filter-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.sample { color: var(--text-2); font-size: 13px; }
+.toolbar { display: flex; gap: 8px; align-items: center; }
+.seg { display: inline-flex; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.seg button { border: 0; background: none; padding: 5px 12px; border-radius: 7px; cursor: pointer; color: var(--text-2); font-size: 13px; }
+.seg button.on { background: var(--accent); color: var(--on-accent); }
+.btn { border: 1px solid var(--line); background: var(--control); border-radius: 9px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+.btn:hover { background: var(--surface-soft); }
+
+/* KPI tiles */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpis.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.kpis.five .k-value { font-size: 26px; }
+.k-split { flex-wrap: wrap; row-gap: 2px; }
+.k-split span { white-space: nowrap; } /* keep each group's dot, name and value on one line */
+.kpi { padding: 16px 18px; }
+.kpi .k-label { color: var(--text-2); font-size: 13px; }
+.kpi .k-value { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
+.kpi .k-sub { color: var(--muted); font-size: 12px; }
+.k-split { display: flex; gap: 14px; margin-top: 8px; font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+.dot.paid { background: var(--paid); }
+.dot.organic { background: var(--organic); }
+.dot.s3 { background: var(--s3); }
+
+/* Sections */
+.section { padding: 18px 20px; margin-bottom: 16px; }
+.section-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.section-head h2 { margin: 0; font-size: 16px; letter-spacing: -0.01em; }
+.section-head p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; align-items: start; }
+.grid-2 > .section { margin-bottom: 0; }
+.stack { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
+.legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--text-2); }
+.legend span { white-space: nowrap; }
+
+/* Bar chart (vertical) */
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .axis text { fill: var(--muted); font-size: 11px; }
+.chart .grid line { stroke: var(--line); }
+.chart .val { fill: var(--text-2); font-size: 10.5px; }
+.chart .hit { fill: transparent; cursor: pointer; }
+.chart .hit:hover { fill: rgba(42, 120, 214, 0.06); }
+.tip {
+  position: fixed;
+  pointer-events: none;
+  background: var(--tip-bg);
+  color: var(--tip-text);
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  z-index: 50;
+  white-space: nowrap;
+  display: none;
+}
+
+/* Horizontal funnel / bar rows */
+.rows { display: flex; flex-direction: column; }
+.row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.3fr) minmax(160px, 2fr) 74px 74px;
+  gap: 14px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.row:last-child { border-bottom: 0; }
+.row.head { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding-top: 0; }
+.row .name { font-size: 13.5px; }
+.row .name code { display: block; font-size: 11px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.row .num { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
+.row .num.drop { color: var(--drop); }
+.row.hot { background: linear-gradient(90deg, var(--hot), transparent 70%); }
+.bars { display: flex; flex-direction: column; gap: 3px; }
+.bar { height: 10px; border-radius: 0 4px 4px 0; background: var(--track); position: relative; overflow: hidden; }
+.bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--paid); border-radius: 0 4px 4px 0; }
+.bar.single i { background: var(--accent); }
+.bar.organic i { background: var(--organic); }
+.bar.s3 i { background: var(--s3); }
+.bars.compare .bar { height: 7px; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; margin: 0 -20px -18px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; font-size: 13px; }
+th { font-size: 11.5px; color: var(--muted); font-weight: 600; background: var(--surface-soft); position: sticky; top: 0; }
+th:first-child, td:first-child { text-align: left; padding-left: 20px; }
+th:last-child, td:last-child { padding-right: 20px; }
+tbody tr:hover { background: var(--hover); }
+tr.click { cursor: pointer; }
+td a, .link { color: var(--accent); font-weight: 600; text-decoration: none; cursor: pointer; }
+td .tag { display: inline-block; font-size: 11px; color: var(--text-2); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+.pair { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.35; }
+.pair span { font-size: 12.5px; white-space: nowrap; }
+td .low { color: var(--muted); font-size: 11px; }
+.table-foot { padding: 10px 20px; color: var(--muted); font-size: 12px; }
+
+/* Trend chips: every metric visible as a one-click button */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: -2px 0 14px; }
+.chip { border: 1px solid var(--line); background: var(--control); border-radius: 999px; padding: 5px 14px; font-size: 13px; color: var(--text-2); cursor: pointer; }
+.chip:hover { background: var(--surface-soft); }
+.chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* Cohort retention heatmap */
+.table-wrap.cohort { margin: 0 -20px; }
+.table-wrap.cohort + .group-title { margin-top: 22px; }
+.cohort th, .cohort td { text-align: center; padding: 7px 8px; font-size: 12.5px; min-width: 62px; }
+.cohort th:first-child, .cohort td:first-child { text-align: left; padding-left: 20px; min-width: 110px; }
+.cohort td:nth-child(2) { color: var(--text-2); }
+.cohort tbody tr:hover { background: none; }
+.cohort tr.total td { font-weight: 700; background: var(--surface-soft); }
+.cohort td.empty { background: none; }
+.group-title { font-size: 14px; margin: 4px 0 10px; }
+.heat-legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.heat-legend i { width: 90px; height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--heat-lo), var(--heat-hi)); }
+
+/* Drawer */
+.scrim { position: fixed; inset: 0; background: rgba(15, 27, 51, 0.35); display: none; z-index: 30; }
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(620px, 100vw);
+  background: var(--surface);
+  z-index: 31;
+  overflow-y: auto;
+  padding: 26px 28px 40px;
+  transform: translateX(100%);
+  transition: transform 0.22s ease;
+  box-shadow: -12px 0 32px rgba(15, 27, 51, 0.12);
+}
+.drawer.open { transform: none; }
+.scrim.open { display: block; }
+.drawer-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+.drawer-head small { font-size: 11px; letter-spacing: 0.16em; color: var(--muted); }
+.drawer-head h2 { margin: 2px 0 2px; font-size: 26px; letter-spacing: -0.02em; }
+.drawer-head p { margin: 0; color: var(--muted); }
+.drawer h3 { font-size: 15px; margin: 22px 0 10px; }
+.mini-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.mini { background: var(--surface-soft); border-radius: 12px; padding: 12px 14px; }
+.mini .k-label { font-size: 12.5px; color: var(--text-2); }
+.mini .k-value { font-size: 22px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.mini .k-sub { font-size: 11.5px; color: var(--muted); }
+.drawer table th:first-child, .drawer table td:first-child { padding-left: 0; }
+.drawer table th:last-child, .drawer table td:last-child { padding-right: 0; }
+.drawer table th { background: none; }
+.drawer .table-wrap { margin: 0; }
+.mini .k-split { flex-wrap: wrap; gap: 4px 12px; font-size: 12px; }
+.note { color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+@media (max-width: 1300px) {
+  .kpis.five { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1100px) {
+  .kpis, .kpis.five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; }
+  .nav { position: static; height: auto; }
+  .main { padding: 16px; }
+  .row { grid-template-columns: minmax(120px, 1fr) minmax(80px, 1fr) 56px; }
+  .row > :nth-child(4) { display: none; }
+}
+</style>
+</head>
+<body>
+  <div class="app">
+    <aside class="nav">
+      <div class="brand"><b>Color Cards</b><span>PRODUCT ANALYTICS</span></div>
+      <div class="nav-label">WORKSPACE</div>
+      <nav class="nav-list" id="nav-list"></nav>
+      <div class="nav-foot">Firebase → BigQuery → Bruin<br>Arayüz taslağı · v0.2<br>Sentetik veri, canlı bağlantı yok</div>
+    </aside>
+    <main class="main" id="view"></main>
+  </div>
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" id="drawer" aria-label="Level detayı"></aside>
+  <div class="tip" id="tip"></div>
+  <script>
+// authoring-only: synthetic player data for the analytics dashboard draft.
+// Figures are invented. Game rules (unlock levels, prices, placements, caps) follow the current build
+// so every metric maps to an event the real game can send later.
+(function (root) {
+  'use strict';
+
+  const DAY0 = Date.UTC(2026, 8, 1); // day index 0 = 2026-09-01
+  const INSTALL_DAYS = 30; // installs 2026-09-01 .. 2026-09-30
+  const OBS_END = 37; // observation ends 2026-10-08
+  const PLAYER_COUNT = 6000;
+  const MAX_LEVEL = 60;
+
+  function dateOf(dayIndex) {
+    return new Date(DAY0 + dayIndex * 864e5).toISOString().slice(0, 10);
+  }
+
+  // Deterministic RNG so every reload and the QA script see the same players.
+  let seed = 20261009;
+  function R() {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  function gauss() {
+    return Math.sqrt(-2 * Math.log(R() + 1e-12)) * Math.cos(2 * Math.PI * R());
+  }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function int(lo, hi) { return lo + Math.floor(R() * (hi - lo + 1)); }
+  function pickW(weights) {
+    let total = 0;
+    for (const k in weights) total += weights[k];
+    let x = R() * total;
+    for (const k in weights) {
+      x -= weights[k];
+      if (x <= 0) return k;
+    }
+    return Object.keys(weights)[0];
+  }
+
+  // Game rules from the current build (interaction-config.json, catalog.json, feature-config.json).
+  const UNLOCK = { burn: 2, move: 4, adCard: 5, daily: 5, interstitial: 5, fan: 7, eventButton: 8 };
+  const BOOSTER_PRICE = { burn: 180, move: 110, fan: 240 };
+  const BOOSTER_PACK = { burn: 2, move: 1, fan: 1 };
+  const EXTRA_PRICE = 240;
+  const NEW_AT = {
+    1: 'Tutorial · Extra',
+    2: 'Burn',
+    4: 'Move',
+    5: 'Reklam kartı · Daily',
+    7: 'Wild · Fan',
+    8: 'Event butonu',
+    13: 'Stone',
+    22: 'Mystery',
+    28: 'Tahta geçişi',
+    37: 'Tied',
+    53: 'Frozen',
+  };
+  const SPIKE = { 8: 0.3, 13: 0.2, 16: 0.16, 18: 0.14, 19: 0.12, 22: 0.2, 28: 0.22, 33: 0.12, 37: 0.2, 45: 0.15, 53: 0.22 };
+  const BOARD_CLEAR = { 28: true, 41: true, 55: true }; // +200 coins when a table boundary is crossed
+  function difficulty(level) {
+    if (level <= 4) return 0.04 + level * 0.015;
+    return Math.min(0.75, 0.14 + level * 0.005 + (SPIKE[level] || 0));
+  }
+
+  const PRODUCTS = {
+    welcome: { name: 'Welcome paketi', group: 'Teklif', usd: 1.99, coins: 700, boost: 2, inf: 120 },
+    'beginner-small': { name: 'Starter · Small', group: 'Starter', usd: 2.99, coins: 500, boost: 1, inf: 0 },
+    'beginner-medium': { name: 'Starter · Medium', group: 'Starter', usd: 6.99, coins: 1000, boost: 3, inf: 60 },
+    'beginner-large': { name: 'Starter · Large', group: 'Starter', usd: 12.99, coins: 2000, boost: 5, inf: 120, noads: true },
+    'beginner-all': { name: 'Starter · Get All', group: 'Starter', usd: 17.99, coins: 3500, boost: 9, inf: 180, noads: true },
+    noads: { name: 'No Ads', group: 'Teklif', usd: 9.99, noads: true },
+    'fail-continue': { name: 'Fail paketi', group: 'Fail', usd: 7.99, coins: 600, boost: 1, inf: 60, extra: 1 },
+    'daily-all-days': { name: 'Daily · Tüm günler', group: 'Daily', usd: 4.99 },
+    'gold-300': { name: '300 altın', group: 'Altın', usd: 2.49, coins: 300 },
+    'gold-1500': { name: '1.500 altın', group: 'Altın', usd: 9.99, coins: 1500 },
+    'gold-3000': { name: '3.000 altın', group: 'Altın', usd: 14.99, coins: 3000 },
+    'gold-7500': { name: '7.500 altın', group: 'Altın', usd: 29.99, coins: 7500 },
+    'gold-15000': { name: '15.000 altın', group: 'Altın', usd: 49.99, coins: 15000 },
+    'gold-30000': { name: '30.000 altın', group: 'Altın', usd: 99.99, coins: 30000 },
+    elite: { name: 'Elite', group: 'Market paketi', usd: 12.99, coins: 900, boost: 1, noads: true },
+    mega: { name: 'Mega', group: 'Market paketi', usd: 24.99, coins: 3300, boost: 2, noads: true },
+    luxury: { name: 'Luxury', group: 'Market paketi', usd: 49.99, coins: 10000, boost: 4, inf: 360, extra: 4, noads: true },
+    royal: { name: 'Royal', group: 'Market paketi', usd: 99.99, coins: 20000, boost: 10, inf: 720, extra: 10, noads: true },
+    ultimate: { name: 'Ultimate', group: 'Market paketi', usd: 119.99, coins: 25000, boost: 13, inf: 1080, extra: 13, noads: true },
+  };
+  const MARKET_MIX = {
+    'gold-300': 30,
+    'gold-1500': 24,
+    'gold-3000': 11,
+    'gold-7500': 5,
+    'gold-15000': 2,
+    'gold-30000': 0.6,
+    elite: 8,
+    mega: 6,
+    luxury: 2.5,
+    royal: 0.8,
+    ultimate: 0.4,
+    noads: 7,
+  };
+  const STARTER_MIX = { 'beginner-small': 40, 'beginner-medium': 30, 'beginner-large': 19, 'beginner-all': 11 };
+
+  // Placement keys double as the future rewarded-ad `placement` parameter.
+  const PLACEMENTS = [
+    ['get2x', 'Get2X · level sonu', 'Ana oyun'],
+    ['ad_card', 'Reklam kartı', 'Ana oyun'],
+    ['continue', 'Devam · fail ekranı', 'Ana oyun'],
+    ['booster_burn', 'Booster · Burn', 'Ana oyun'],
+    ['booster_move', 'Booster · Move', 'Ana oyun'],
+    ['booster_fan', 'Booster · Fan', 'Ana oyun'],
+    ['booster_extra', 'Booster · Extra', 'Ana oyun'],
+    ['life', '+1 can', 'Ana oyun'],
+    // Treasure chain steps are separate placements; each is offered only after the previous step paid out.
+    ['treasure_coins', 'Treasure · 1. adım · 90 altın', 'Free'],
+    ['treasure_burn', 'Treasure · 2. adım · Burn', 'Free'],
+    ['treasure_lives', 'Treasure · 3. adım · 20 dk sınırsız can', 'Free'],
+    ['treasure_fan', 'Treasure · 4. adım · Fan', 'Free'],
+    ['daily_entry', 'Daily · giriş', 'Daily'],
+    ['daily_continue', 'Daily · devam', 'Daily'],
+    ['daily_restart', 'Daily · restart', 'Daily'],
+    ['daily_booster', 'Daily · booster', 'Daily'],
+  ];
+  const AD_VALUE = { rewarded: 0.014, interstitial: 0.009, banner: 0.0004 }; // USD per impression
+  const COUNTRY_AD = { TR: 0.45, US: 2.6, DE: 1.9, BR: 0.5, OTHER: 0.9 };
+  const COUNTRY_PAY = { TR: 0.6, US: 1.8, DE: 1.4, BR: 0.5, OTHER: 0.9 };
+
+  const DAILY_BOARDS = 38;
+  const DAILY_DIFF = [];
+  const DAILY_LIMIT = [];
+  for (let i = 0; i < DAILY_BOARDS; i++) {
+    DAILY_DIFF.push(0.18 + R() * 0.32);
+    DAILY_LIMIT.push(R() < 0.5 ? 'time' : 'moves');
+  }
+  const DAILY_MILESTONES = [
+    { at: 5, coins: 80 },
+    { at: 12, coins: 120 },
+    { at: 20, coins: 400 },
+    { at: 30, coins: 600 },
+  ];
+
+  // Illustrative live-ops events: the game has no event system yet (event-entry.js is a placeholder).
+  const EVENTS = [
+    { id: 'A', name: 'Örnek event A · Kart Avı', start: 10, end: 16 },
+    { id: 'B', name: 'Örnek event B · Kraliyet Yarışı', start: 24, end: 30 },
+  ];
+
+  const ONBOARDING_TUTORIAL = [
+    ['first_open', 'Uygulama ilk açıldı', 0],
+    ['loading_complete', 'Yükleme tamamlandı', 0.025],
+    ['level_start · L1', 'Level 1 başladı', 0.015],
+    ['tutorial_step · guided_move', 'Yönlendirilen ilk hamle', 0.02],
+    ['tutorial_step · first_merge', 'İlk merge', 0.022],
+    ['tutorial_step · first_deal', 'İlk Deal', 0.015],
+    ['tutorial_step · goal_tip', 'Hedef ipucu görüldü', 0.01],
+    ['tutorial_step · slot_unlock', 'İlk ücretsiz slot açıldı', 0.034],
+    ['tutorial_step · extra_used', 'Extra tanıtıldı ve kullanıldı', 0.028],
+  ];
+  // Synthetic release differences so the version comparison has something to show:
+  // 1.0.0 loads slower, 1.1.0 clarifies the first move and slot unlock and eases Level 8.
+  const VERSION_TUTORIAL_EFFECT = {
+    '1.0.0': { loading_complete: 1.6, 'tutorial_step · first_merge': 1.3 },
+    '1.0.1': {},
+    '1.1.0': { 'tutorial_step · guided_move': 0.7, 'tutorial_step · slot_unlock': 0.45 },
+  };
+  const VERSION_LEVEL_EFFECT = { '1.1.0': { 8: 0.6 } };
+  const ONBOARDING_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; // one step per level so each loss belongs to a single level
+
+  const players = [];
+  const levels = [];
+  const dailies = [];
+  const purchases = [];
+
+  function makePlayer(id) {
+    const installDay = Math.floor(R() * INSTALL_DAYS);
+    const acq = R() < 0.56 ? 'paid' : 'organic';
+    const platform = R() < 0.44 ? 'ios' : 'android';
+    const country = pickW({ TR: 40, US: 18, DE: 11, BR: 16, OTHER: 15 });
+    const version = installDay < 9 ? '1.0.0' : installDay < 20 ? '1.0.1' : '1.1.0';
+    const engage = Math.exp(gauss() * 0.38) * (acq === 'paid' ? 0.9 : 1.06) * (platform === 'ios' ? 1.05 : 0.97);
+    const whale = R() < 0.08;
+    const spend = (whale ? Math.exp(gauss() * 0.8 + 0.9) : 0.12)
+      * COUNTRY_PAY[country]
+      * (platform === 'ios' ? 1.35 : 0.85)
+      * (acq === 'paid' ? 1.1 : 0.95);
+    return {
+      id,
+      installDay,
+      acq,
+      platform,
+      country,
+      version,
+      engage,
+      skill: clamp(0.5 + gauss() * 0.2, 0, 1),
+      spend,
+      adValue: COUNTRY_AD[country] * (platform === 'ios' ? 1.3 : 0.9),
+      active: [],
+      levelAt: {},
+      attemptsByDay: {},
+      revIap: {},
+      revAd: {},
+      purchases: [],
+      level: 1,
+      maxWon: 0,
+      wonDay: {}, // first-win day offset per level, used for fixed onboarding windows
+      onbStep: 0,
+      firstSessionMin: 0,
+      d0Min: 0,
+      churned: false,
+      coins: 300,
+      lives: 5,
+      lifeT: 0,
+      infUntil: 0,
+      noads: false,
+      allDays: false,
+      bought: {},
+      stock: { burn: 0, move: 0, fan: 0, extra: 0, magnet: 2 },
+      extraFree: 2,
+      slots: 0,
+      failChain: 0,
+      giftDone: false,
+      firstUse: {},
+      firstUseDay: {},
+      src: {},
+      sink: {},
+      bst: {
+        burn: { start: 0, coin: 0, ad: 0, treasure: 0, iap: 0, daily: 0, used: 0 },
+        move: { start: 0, coin: 0, ad: 0, treasure: 0, iap: 0, daily: 0, used: 0 },
+        fan: { start: 0, coin: 0, ad: 0, treasure: 0, iap: 0, daily: 0, used: 0 },
+        extra: { start: 0, coin: 0, ad: 0, treasure: 0, iap: 0, daily: 0, used: 0 },
+      },
+      ads: {},
+      inter: {},
+      banner: 0,
+      market: {},
+      offers: {},
+      short: 0,
+      lifeLoss: { fail: 0, restart: 0 },
+      zero: [],
+      infMin: 0,
+      treasure: { days: 0, free: 0, chain: [0, 0, 0, 0] },
+      dailyDone: 0,
+      milestones: [0, 0, 0, 0],
+      milestoneClaimed: [0, 0, 0, 0],
+      ev: {},
+      eventTaps: 0,
+      // session-only simulation clocks
+      t: 0,
+      day: 0,
+      sessionT: 0,
+      lastAdT: -99,
+      lastRwT: -99,
+      interCount: 0,
+      quit: false,
+      rec: null,
+    };
+  }
+
+  function addRev(p, kind, usd) {
+    const bucket = kind === 'iap' ? p.revIap : p.revAd;
+    bucket[p.day] = (bucket[p.day] || 0) + usd;
+  }
+  function earn(p, cat, amount) {
+    p.coins += amount;
+    p.src[cat] = (p.src[cat] || 0) + amount;
+  }
+  function pay(p, cat, amount) {
+    p.coins -= amount;
+    p.sink[cat] = (p.sink[cat] || 0) + amount;
+  }
+  function grant(p, type, n, source) {
+    p.stock[type] += n;
+    p.bst[type][source] += n;
+  }
+
+  function rewarded(p, placement, clickP) {
+    const a = p.ads[placement] || (p.ads[placement] = [0, 0, 0, 0]); // offered, clicked, rewarded, failed
+    a[0]++;
+    if (R() >= clickP) return false;
+    a[1]++;
+    if (R() < 0.05) {
+      a[3]++; // no fill: reward is never granted on failed playback
+      return false;
+    }
+    a[2]++;
+    p.lastRwT = p.t;
+    addRev(p, 'ad', AD_VALUE.rewarded * p.adValue);
+    return true;
+  }
+
+  function buy(p, productId, source) {
+    const prod = PRODUCTS[productId];
+    const rec = p.rec;
+    const order = {
+      p,
+      product: productId,
+      usd: prod.usd,
+      source,
+      day: p.day,
+      level: p.level,
+      first: p.purchases.length === 0,
+    };
+    if (rec) {
+      if (order.first) rec.firstPay = true;
+      else if (rec.payer) rec.repeatPay = true; // a new payer's second order in the same level is not a repeat payment
+    }
+    p.purchases.push(order);
+    purchases.push(order);
+    addRev(p, 'iap', prod.usd);
+    if (prod.coins) earn(p, 'iap', prod.coins);
+    if (prod.boost) {
+      grant(p, 'burn', prod.boost, 'iap');
+      grant(p, 'move', prod.boost, 'iap');
+      grant(p, 'fan', prod.boost, 'iap');
+    }
+    if (prod.extra) grant(p, 'extra', prod.extra, 'iap');
+    if (prod.inf) {
+      p.infUntil = Math.max(p.infUntil, p.t) + prod.inf;
+      p.infMin += prod.inf;
+    }
+    if (prod.noads) p.noads = true;
+    if (productId === 'daily-all-days') p.allDays = true;
+    if (productId !== 'gold-300' && PRODUCTS[productId].group !== 'Altın') p.bought[productId] = true;
+  }
+
+  function openMarket(p, source) {
+    const m = p.market[source] || (p.market[source] = [0, 0]); // opens, purchases
+    m[0]++;
+    if (R() < clamp(0.045 * p.spend, 0, 0.5)) {
+      let product = pickW(MARKET_MIX);
+      if (product === 'noads' && p.noads) product = 'gold-1500';
+      buy(p, product, 'market:' + source);
+      m[1]++;
+      return true;
+    }
+    return false;
+  }
+
+  function shortOfCoins(p, source) {
+    p.short++;
+    if (R() < 0.35) return openMarket(p, source);
+    return false;
+  }
+
+  function showOffer(p, offer, productPicker) {
+    const o = p.offers[offer] || (p.offers[offer] = [0, 0, 0]); // shown, clicked, purchased
+    o[0]++;
+    if (R() >= 0.11) return false;
+    o[1]++;
+    if (R() >= clamp(0.07 * p.spend, 0, 0.6)) return false;
+    o[2]++;
+    buy(p, productPicker(), 'offer:' + offer);
+    return true;
+  }
+
+  function regenLives(p) {
+    if (p.lives >= 5) {
+      p.lifeT = p.t;
+      return;
+    }
+    const gained = Math.floor((p.t - p.lifeT) / 30); // one life per 30 minutes
+    if (gained > 0) {
+      p.lives = Math.min(5, p.lives + gained);
+      p.lifeT += gained * 30;
+    }
+  }
+  function loseLife(p, reason) {
+    if (p.t < p.infUntil) return; // infinite lives make fail-close and restart free
+    regenLives(p);
+    p.lives = Math.max(0, p.lives - 1);
+    p.lifeLoss[reason]++;
+  }
+  function ensureLife(p) {
+    regenLives(p);
+    if (p.lives > 0 || p.t < p.infUntil) return true;
+    const refill = 250; // 50 coins per missing life
+    let outcome = 'wait';
+    if (p.coins >= refill && R() < 0.35) {
+      pay(p, 'refill', refill);
+      p.lives = 5;
+      outcome = 'refill';
+    } else if (p.coins < refill && rewarded(p, 'life', 0.35)) {
+      p.lives = 1;
+      outcome = 'ad';
+    } else if (R() < 0.08 && openMarket(p, 'lives')) {
+      if (p.coins >= refill) pay(p, 'refill', refill);
+      p.lives = 5;
+      outcome = 'market';
+    }
+    p.zero.push({ day: p.day, outcome });
+    return outcome !== 'wait';
+  }
+
+  function showInterstitial(p, trigger) {
+    const a = p.inter[trigger] || (p.inter[trigger] = [0, 0, 0]); // shown, failed, quitWithin60s
+    if (R() < 0.06) {
+      a[1]++;
+      p.lastAdT = p.t - 3; // failure retries after 30 s instead of the full 210 s
+      return;
+    }
+    a[0]++;
+    p.lastAdT = p.t;
+    p.interCount++;
+    if (p.rec) p.rec.interstitials++;
+    addRev(p, 'ad', AD_VALUE.interstitial * p.adValue);
+    if (trigger !== 'l4') earn(p, 'interstitial', 3); // the first Level 4 ad never pays coins
+    // No Ads popup follows the first interstitial and every 4th one after it.
+    if (!p.noads && (p.interCount === 1 || p.interCount % 4 === 0)) {
+      showOffer(p, 'noads', () => 'noads');
+    }
+    if (R() < 0.022) {
+      a[2]++;
+      p.quit = true;
+    }
+  }
+  function maybeInterstitial(p, trigger) {
+    if (p.noads || p.level < UNLOCK.interstitial) return;
+    if (p.t - p.sessionT < 3.5 || p.t - p.lastAdT < 3.5 || p.t - p.lastRwT < 3.5) return; // 210 s gates
+    showInterstitial(p, trigger);
+  }
+
+  function markUse(p, type) {
+    if (!p.firstUse[type]) {
+      p.firstUse[type] = p.level;
+      p.firstUseDay[type] = p.day;
+    }
+  }
+
+  function useBooster(p, type) {
+    if (p.stock[type] <= 0) {
+      const price = BOOSTER_PRICE[type];
+      if (p.coins >= price) {
+        if (R() >= 0.3) return false;
+        pay(p, type, price);
+        grant(p, type, BOOSTER_PACK[type], 'coin');
+      } else if (rewarded(p, 'booster_' + type, 0.3)) {
+        grant(p, type, 1, 'ad'); // ad option only appears when coins are short
+      } else {
+        shortOfCoins(p, 'booster');
+        return false;
+      }
+    }
+    p.stock[type]--;
+    p.bst[type].used++;
+    p.rec[type]++;
+    markUse(p, type);
+    return true;
+  }
+
+  function useExtra(p) {
+    if (p.extraFree > 0) {
+      p.extraFree--; // two initial free uses, never refilled
+      p.bst.extra.start++;
+    } else if (p.stock.extra > 0) {
+      p.stock.extra--;
+    } else if (p.coins >= EXTRA_PRICE) {
+      if (R() >= 0.25) return false;
+      pay(p, 'extra', EXTRA_PRICE);
+      p.bst.extra.coin++;
+    } else if (rewarded(p, 'booster_extra', 0.3)) {
+      p.bst.extra.ad++;
+    } else {
+      shortOfCoins(p, 'extra');
+      return false;
+    }
+    p.bst.extra.used++;
+    p.rec.extra++;
+    markUse(p, 'extra');
+    return true;
+  }
+
+  function trySlot(p) {
+    if (p.slots >= 4) return false;
+    const price = p.level < 15 ? 600 : 1800;
+    if (p.coins < price) {
+      if (R() < 0.15) shortOfCoins(p, 'slot');
+      return false;
+    }
+    if (R() >= 0.1) return false;
+    pay(p, 'slot', price);
+    p.slots++;
+    p.rec.slot++;
+    p.rec.slotSpend += price;
+    return true;
+  }
+
+  function attemptMinutes(level) {
+    return (1.4 + level * 0.035 + difficulty(level) * 4) * Math.exp(gauss() * 0.35);
+  }
+
+  function failFlow(p, rec, baseWin) {
+    rec.fails++;
+    for (let k = 0; k < 3; k++) {
+      const price = 250 + 85 * Math.min(p.failChain, 4);
+      let resumed = false;
+      const o = p.offers.fail_pack || (p.offers.fail_pack = [0, 0, 0]);
+      o[0]++;
+      if (R() < 0.03) o[1]++;
+      if (R() < clamp(0.003 * p.spend, 0, 0.1)) {
+        o[2]++;
+        buy(p, 'fail-continue', 'offer:fail_pack');
+        p.stock.extra = Math.max(0, p.stock.extra - 1); // the pack's rental activates immediately
+        rec.failPack++;
+        resumed = true;
+      } else if (p.coins >= price) {
+        if (R() < 0.38) {
+          pay(p, 'continue', price);
+          rec.contCoin++;
+          resumed = true;
+        }
+      } else if (rewarded(p, 'continue', 0.42)) {
+        rec.contAd++;
+        resumed = true;
+      } else if (R() < 0.3) {
+        shortOfCoins(p, 'fail');
+      }
+      p.failChain++; // any resolution raises the next continue price until a win
+      if (!resumed) break;
+      if (R() < clamp(baseWin + 0.25, 0, 0.95)) return 'win';
+      rec.fails++;
+    }
+    rec.failClose++;
+    loseLife(p, 'fail');
+    return 'lose';
+  }
+
+  function newLevelRecord(p) {
+    const rec = {
+      p,
+      level: p.level,
+      day: p.day,
+      lastDay: p.day,
+      attempts: 0,
+      won: false,
+      mins: 0,
+      restarts: 0,
+      abandon: 0,
+      fails: 0,
+      contCoin: 0,
+      contAd: 0,
+      failPack: 0,
+      failClose: 0,
+      burn: 0,
+      move: 0,
+      fan: 0,
+      extra: 0,
+      slot: 0,
+      slotSpend: 0,
+      adCard: 0,
+      get2x: false,
+      interstitials: 0,
+      coinsAtEntry: p.coins,
+      payer: p.purchases.length > 0,
+      firstPay: false,
+      repeatPay: false,
+      churn7: false,
+      mature: false,
+    };
+    levels.push(rec);
+    if (p.level === 3 && !p.bought.welcome) p.welcomeFrom = p.day; // Welcome unlocks at Level 3
+    return rec;
+  }
+
+  function runTutorial(p, firstSession) {
+    const factor = p.acq === 'paid' ? 1.35 : 0.85;
+    for (let i = 1; i < ONBOARDING_TUTORIAL.length; i++) {
+      const effect = VERSION_TUTORIAL_EFFECT[p.version][ONBOARDING_TUTORIAL[i][0]] || 1;
+      if (R() < ONBOARDING_TUTORIAL[i][2] * factor * effect / Math.sqrt(p.engage)) {
+        p.onbStep = i - 1;
+        p.churned = R() < 0.92;
+        p.quit = true;
+        return false;
+      }
+      if (i === ONBOARDING_TUTORIAL.length - 1) {
+        p.extraFree--; // EXTRA teaching requires one activation; it is not counted as level assistance
+        p.bst.extra.start++;
+        p.bst.extra.used++;
+        markUse(p, 'extra');
+      }
+    }
+    p.onbStep = ONBOARDING_TUTORIAL.length - 1;
+    return true;
+  }
+
+  function playAttempt(p) {
+    if (!p.rec) p.rec = newLevelRecord(p);
+    const rec = p.rec;
+    const level = p.level;
+    if (level > 1 && !ensureLife(p)) {
+      p.quit = true;
+      p.dayOver = true;
+      return;
+    }
+    rec.attempts++;
+    rec.lastDay = p.day;
+    p.attemptsByDay[p.day] = (p.attemptsByDay[p.day] || 0) + 1;
+    const mins = attemptMinutes(level);
+    p.t += mins;
+    rec.mins += mins;
+    if (level >= 4 && !p.noads) p.banner += Math.round(mins * 2); // banner refresh every 30 s
+    if (level >= 4 && !p.noads) addRev(p, 'ad', AD_VALUE.banner * p.adValue * mins * 2);
+
+    if (level === 1 && rec.attempts === 1 && !runTutorial(p)) return;
+
+    const d = difficulty(level) * ((VERSION_LEVEL_EFFECT[p.version] || {})[level] || 1);
+    let win = clamp(1 - d * (1.35 - p.skill * 0.7), 0.08, 0.995);
+
+    if (level > 1 && R() < 0.035) {
+      rec.abandon++; // session ended mid-level; live session restores this board later
+      p.quit = true;
+      return;
+    }
+    if (level > 2 && R() < 0.03) {
+      rec.restarts++; // settings restart costs a life and counts as a loss
+      loseLife(p, 'restart');
+      return;
+    }
+    if (level === UNLOCK.adCard && !p.giftDone) {
+      p.giftDone = true; // fixed free gift once per save: not an ad and not counted as assistance
+      if (R() < 0.85) win += 0.05;
+    }
+    if (level > UNLOCK.adCard) {
+      const shows = Math.floor(mins / 4); // recurring offer every 200-300 s of active play
+      for (let i = 0; i < shows; i++) {
+        if (rewarded(p, 'ad_card', 0.16)) {
+          rec.adCard++;
+          win += 0.06;
+        }
+      }
+    }
+    if (R() < clamp(d * 1.6, 0.03, 0.9)) {
+      if (level >= UNLOCK.burn && R() < 0.45 && useBooster(p, 'burn')) win += 0.13;
+      if (level >= UNLOCK.move && R() < 0.35 && useBooster(p, 'move')) win += 0.1;
+      if (level >= UNLOCK.fan && R() < 0.3 && useBooster(p, 'fan')) win += 0.12;
+      if (R() < 0.4 && useExtra(p)) win += 0.1;
+      if (R() < 0.12 && trySlot(p)) win += 0.15;
+    }
+    if (R() < 0.45) maybeInterstitial(p, 'deal'); // not every attempt taps Deal after the 210 s gate
+    if (p.quit) return;
+
+    let result = R() < win ? 'win' : failFlow(p, rec, win);
+    if (result === 'win') return winLevel(p, rec);
+    if (R() < 0.1 + d * 0.25) frustratedQuit(p);
+  }
+
+  function frustratedQuit(p) {
+    p.quit = true;
+    if (R() < 0.16 * (p.acq === 'paid' ? 1.25 : 1) / p.engage) p.churned = true;
+  }
+
+  function winLevel(p, rec) {
+    rec.won = true;
+    p.failChain = 0;
+    p.maxWon = p.level;
+    earn(p, 'level', 10);
+    if (p.level >= 2 && rewarded(p, 'get2x', 0.33)) {
+      earn(p, 'get2x', 10);
+      rec.get2x = true;
+    }
+    if (BOARD_CLEAR[p.level]) earn(p, 'board', 200);
+    const finished = p.level;
+    if (p.wonDay[finished] === undefined) p.wonDay[finished] = p.day;
+    if (finished === 1) p.onbStep = ONBOARDING_TUTORIAL.length - 1; // a resumed tutorial still finishes every step before L1 completes
+    p.level++;
+    p.rec = null;
+    if (finished === 4 && !p.noads) {
+      showInterstitial(p, 'l4'); // forced first ad after Level 4, ignores the 210 s clocks
+    } else {
+      maybeInterstitial(p, 'next');
+    }
+    if (p.level === UNLOCK.burn) grant(p, 'burn', 2, 'start');
+    if (p.level === UNLOCK.move) grant(p, 'move', 2, 'start');
+    if (p.level === UNLOCK.fan) grant(p, 'fan', 2, 'start');
+    if (p.level === UNLOCK.eventButton && R() < 0.36) p.eventTaps += int(1, 4);
+    if (p.level === 6 && !p.starterFrom) p.starterFrom = p.day;
+    if (R() < 0.07) {
+      p.quit = true; // natural stop between levels
+      if (R() < 0.22 * (p.acq === 'paid' ? 1.3 : 1) / p.engage) p.churned = true;
+    }
+  }
+
+  function dailyOffers(p) {
+    if (p.welcomeFrom !== undefined && !p.bought.welcome) {
+      const age = p.day - p.welcomeFrom;
+      if (age <= 2 || (age >= 7 && age <= 9)) showOffer(p, 'welcome', () => 'welcome'); // 72 h, again after 4 days
+    }
+    if (p.starterFrom !== undefined && !p.bought.starter) {
+      if (showOffer(p, 'starter', () => pickW(STARTER_MIX))) p.bought.starter = true;
+    }
+    if (R() < 0.12) openMarket(p, 'hud');
+  }
+
+  function treasureDay(p) {
+    if (p.maxWon < 1) return;
+    p.treasure.days++;
+    const free = pickW({ 0: 25, 1: 40, 2: 25, 3: 10 }) | 0;
+    p.treasure.free += free;
+    if (free) earn(p, 'treasure', 10 * free);
+    if (!rewarded(p, 'treasure_coins', 0.3)) return;
+    p.treasure.chain[0]++;
+    earn(p, 'treasure', 90);
+    if (!rewarded(p, 'treasure_burn', 0.55)) return;
+    p.treasure.chain[1]++;
+    grant(p, 'burn', 1, 'treasure');
+    if (!rewarded(p, 'treasure_lives', 0.55)) return;
+    p.treasure.chain[2]++;
+    p.infUntil = Math.max(p.infUntil, p.t) + 20;
+    p.infMin += 20;
+    if (!rewarded(p, 'treasure_fan', 0.55)) return;
+    p.treasure.chain[3]++;
+    grant(p, 'fan', 1, 'treasure');
+  }
+
+  function playDaily(p, entry) {
+    const abs = p.installDay + p.day;
+    const board = (abs - (entry === 'today' ? 0 : int(1, 6)) + DAILY_BOARDS * 4) % DAILY_BOARDS;
+    const rec = {
+      p,
+      day: p.day,
+      board,
+      entry,
+      completed: false,
+      hitLimit: false,
+      continued: false,
+      restarted: false,
+      moveUse: 0,
+      magnetUse: 0,
+      mins: 2 + R() * 4,
+    };
+    dailies.push(rec);
+    p.t += rec.mins;
+    let win = clamp(1 - DAILY_DIFF[board] * (1.3 - p.skill * 0.6), 0.15, 0.97);
+    if (R() < 0.2) {
+      if (p.stock.move > 0) {
+        p.stock.move--;
+      } else if (p.coins >= BOOSTER_PRICE.move) {
+        pay(p, 'daily_move', BOOSTER_PRICE.move);
+      } else if (!rewarded(p, 'daily_booster', 0.3)) {
+        win -= 0.08;
+      }
+      rec.moveUse++;
+      win += 0.08;
+    }
+    if (R() < 0.15) {
+      if (p.stock.magnet > 0) {
+        p.stock.magnet--;
+      } else if (p.coins >= 160) {
+        pay(p, 'daily_magnet', 160);
+        p.stock.magnet += 1;
+      } else if (!rewarded(p, 'daily_booster', 0.3)) {
+        win -= 0.08;
+      }
+      rec.magnetUse++;
+      win += 0.08;
+    }
+    if (R() < win) {
+      rec.completed = true;
+    } else {
+      rec.hitLimit = true;
+      if (rewarded(p, 'daily_continue', 0.4)) {
+        rec.continued = true; // +30 s or +5 moves
+        rec.completed = R() < 0.55;
+      } else if (rewarded(p, 'daily_restart', 0.08)) {
+        rec.restarted = true;
+        rec.completed = R() < win;
+      }
+    }
+    if (!rec.completed) return false;
+    p.dailyDone++;
+    DAILY_MILESTONES.forEach((m, i) => {
+      if (p.dailyDone === m.at) {
+        p.milestones[i] = 1;
+        if (R() < 0.9) {
+          p.milestoneClaimed[i] = 1;
+          earn(p, 'daily', m.coins);
+          if (i >= 1) grant(p, 'burn', i === 3 ? 4 : 1, 'daily');
+          if (i >= 2) grant(p, 'fan', i === 3 ? 3 : 2, 'daily');
+          if (i === 0) grant(p, 'move', 2, 'daily');
+        }
+      }
+    });
+    return true;
+  }
+
+  function dailyChallenge(p) {
+    if (p.maxWon < UNLOCK.daily) return;
+    if (R() < 0.38 * p.engage) {
+      const done = playDaily(p, 'today');
+      if (!done && R() < 0.4 && rewarded(p, 'daily_entry', 0.35)) playDaily(p, 'retry_ad');
+    }
+    if (R() < 0.1 * p.engage) {
+      if (!p.allDays && R() < clamp(0.003 * p.spend, 0, 0.05)) buy(p, 'daily-all-days', 'offer:daily');
+      if (p.allDays) playDaily(p, 'alldays');
+      else if (rewarded(p, 'daily_entry', 0.6)) playDaily(p, 'past_ad');
+    }
+  }
+
+  function activeProbability(p, dayOffset) {
+    const base = p.acq === 'paid' ? 0.36 : 0.44;
+    return clamp(base * p.engage * Math.pow(dayOffset, -0.32), 0, 0.93);
+  }
+
+  function simulatePlayer(p) {
+    const lastDay = OBS_END - p.installDay;
+    for (let day = 0; day <= lastDay && !p.churned; day++) {
+      if (day > 0 && R() >= activeProbability(p, day)) continue;
+      p.day = day;
+      p.active.push(day);
+      p.levelAt[day] = p.level;
+      p.dayOver = false;
+      const sessions = int(1, 3);
+      const budget = (8 + R() * 30) * p.engage;
+      p.t = day * 1440 + 600 + R() * 480;
+      if (p.lives < 5) {
+        p.lives = 5; // a night away refills lives
+        p.lifeT = p.t;
+      }
+      for (let s = 0; s < sessions && !p.churned && !p.dayOver; s++) {
+        p.sessionT = p.t;
+        p.quit = false;
+        const end = p.t + budget / sessions;
+        if (s === 0) dailyOffers(p);
+        while (p.t < end && !p.quit && p.level <= MAX_LEVEL) {
+          playAttempt(p);
+        }
+        if (!p.churned && p.maxWon >= 1) {
+          if (s === 0) treasureDay(p);
+          if (s === 0) dailyChallenge(p);
+        }
+        // Session play time covers levels, Daily and Treasure; the break between sessions is excluded.
+        if (day === 0) {
+          if (s === 0) p.firstSessionMin = p.t - p.sessionT;
+          p.d0Min += p.t - p.sessionT;
+        }
+        p.t += 60 + R() * 180;
+      }
+    }
+    p.rec = null;
+  }
+
+  for (let i = 0; i < PLAYER_COUNT; i++) {
+    const p = makePlayer(i);
+    players.push(p);
+    simulatePlayer(p);
+  }
+
+  // Derived flags computed after play so they only use observed future activity.
+  const lastRecord = new Map();
+  for (const rec of levels) lastRecord.set(rec.p, rec);
+  for (const rec of levels) {
+    const p = rec.p;
+    rec.mature = p.installDay + rec.lastDay + 7 <= OBS_END;
+    if (!rec.mature || lastRecord.get(p) !== rec) continue;
+    const next = p.active.find((d) => d > rec.lastDay);
+    rec.churn7 = next === undefined || next > rec.lastDay + 7;
+  }
+
+  for (const p of players) {
+    for (const ev of EVENTS) {
+      const days = p.active.filter((d) => {
+        const abs = p.installDay + d;
+        return abs >= ev.start && abs <= ev.end && p.levelAt[d] >= UNLOCK.eventButton;
+      });
+      const e = { eligible: days.length > 0, steps: 0, levels: 0, days: [], retained: null, revenue: 0 };
+      p.ev[ev.id] = e;
+      if (!e.eligible) continue;
+      // steps: 1 saw entry, 2 opened, 3 joined, 4-6 rewards, 7 completed
+      const odds = [0.93, clamp(0.2 + 0.28 * p.engage, 0, 0.9), clamp(0.6 + 0.15 * p.engage, 0, 0.95), 0.8, 0.7, 0.65, 0.7];
+      for (const o of odds) {
+        if (R() >= o * (days.length > 2 ? 1 : 0.85)) break;
+        e.steps++;
+      }
+      if (e.steps >= 3) {
+        e.days = days.map((d) => p.installDay + d);
+        e.levels = days.reduce((sum, d) => sum + (p.attemptsByDay[d] || 0), 0);
+        if (R() < clamp(0.012 * p.spend, 0, 0.3)) e.revenue = 4.99;
+      }
+      if (ev.end + 7 <= OBS_END) {
+        e.retained = p.active.some((d) => {
+          const abs = p.installDay + d;
+          return abs > ev.end && abs <= ev.end + 7;
+        });
+      }
+    }
+  }
+
+  root.SIM = {
+    DAY0,
+    INSTALL_DAYS,
+    OBS_END,
+    MAX_LEVEL,
+    UNLOCK,
+    NEW_AT,
+    PRODUCTS,
+    PLACEMENTS,
+    DAILY_BOARDS,
+    DAILY_LIMIT,
+    DAILY_MILESTONES,
+    EVENTS,
+    ONBOARDING_TUTORIAL,
+    ONBOARDING_LEVELS,
+    ONBOARDING_WINDOW: 7,
+    dateOf,
+    players,
+    levels,
+    dailies,
+    purchases,
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+  <script>
+// authoring-only: dashboard rendering for the analytics draft. Reads window.SIM, never game saves.
+(function () {
+  'use strict';
+
+  const S = window.SIM;
+  const view = document.getElementById('view');
+  const tip = document.getElementById('tip');
+
+  const TABS = [
+    { id: 'onboarding', name: 'Onboarding' },
+    { id: 'overview', name: 'Genel bakış' },
+    { id: 'level', name: 'Level performansı' },
+    { id: 'ads', name: 'Reklam' },
+    { id: 'market', name: 'Market & Offers' },
+    { id: 'daily', name: 'Daily' },
+    { id: 'event', name: 'Event' },
+    { id: 'economy', name: 'Ekonomi & Free' },
+  ];
+
+  const DEFAULT_FILTERS = {
+    from: '2026-09-01',
+    to: '2026-09-30',
+    platform: 'all',
+    acq: 'all',
+    country: 'all',
+    version: 'all',
+    entryDay: 'all',
+    payer: 'all',
+    lvFrom: 1,
+    lvTo: 30,
+  };
+  // session-only: UI state lives in memory and the URL hash.
+  const state = {
+    tab: TABS.some((t) => '#' + t.id === location.hash) ? location.hash.slice(1) : 'onboarding',
+    compare: false, // false | 'acq' | 'version' (version only on Onboarding)
+    verA: '1.0.1',
+    verB: '1.1.0',
+    f: Object.assign({}, DEFAULT_FILTERS),
+    trend: 'dau',
+    levelMetric: 'reach',
+    eventId: 'B',
+    drawerLevel: null,
+  };
+
+  // ---------- formatting ----------
+  const nf0 = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 });
+  const nf1 = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const nf2 = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const ok = (v) => v !== null && v !== undefined && isFinite(v);
+  const F = {
+    int: (v) => (ok(v) ? nf0.format(Math.round(v)) : '—'),
+    pct: (v) => (ok(v) ? nf1.format(v * 100) + '%' : '—'),
+    pct0: (v) => (ok(v) ? nf0.format(v * 100) + '%' : '—'),
+    usd: (v) => (ok(v) ? '$' + (Math.abs(v) >= 100 ? nf0.format(v) : nf2.format(v)) : '—'),
+    usd3: (v) => (ok(v) ? '$' + new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(v) : '—'),
+    dec: (v) => (ok(v) ? nf1.format(v) : '—'),
+    dec2: (v) => (ok(v) ? nf2.format(v) : '—'),
+    min: (v) => (ok(v) ? nf1.format(v) + ' dk' : '—'),
+  };
+  const pair = (a, b, f) => (ok(a) || ok(b) ? f(a) + ' / ' + f(b) : '—');
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const shortDate = (dayIndex) => S.dateOf(dayIndex).slice(8, 10) + '.' + S.dateOf(dayIndex).slice(5, 7);
+
+  // ---------- math ----------
+  const sum = (arr, f) => arr.reduce((s, x) => s + (f ? f(x) : x), 0);
+  const ratio = (a, b) => (b > 0 ? a / b : null);
+  function quantile(values, q) {
+    if (!values.length) return null;
+    const v = values.slice().sort((a, b) => a - b);
+    const pos = (v.length - 1) * q;
+    const lo = Math.floor(pos);
+    const hi = Math.ceil(pos);
+    return v[lo] + (v[hi] - v[lo]) * (pos - lo);
+  }
+  const sumObj = (o) => Object.values(o).reduce((s, x) => s + x, 0);
+  const dayIndexOf = (iso) => Math.round((Date.parse(iso + 'T00:00:00Z') - S.DAY0) / 864e5);
+
+  // ---------- filtering ----------
+  function playerPass(p, f) {
+    const from = dayIndexOf(f.from);
+    const to = dayIndexOf(f.to);
+    if (p.installDay < from || p.installDay > to) return false;
+    if (f.platform !== 'all' && p.platform !== f.platform) return false;
+    if (f.acq !== 'all' && p.acq !== f.acq) return false;
+    if (f.country !== 'all' && p.country !== f.country) return false;
+    if (f.version !== 'all' && state.compare !== 'version' && p.version !== f.version) return false; // the version split replaces the version filter
+    return true;
+  }
+  function levelPass(r, f, anyLevel) {
+    if (!anyLevel && (r.level < f.lvFrom || r.level > f.lvTo)) return false; // the drawer may open a level outside the range
+    if (f.payer === 'payer' && !r.payer) return false;
+    if (f.payer === 'nonpayer' && r.payer) return false;
+    if (f.entryDay === 'd0' && r.day !== 0) return false;
+    if (f.entryDay === 'd1' && (r.day < 1 || r.day > 3)) return false;
+    if (f.entryDay === 'd4' && (r.day < 4 || r.day > 7)) return false;
+    if (f.entryDay === 'd8' && r.day < 8) return false;
+    return true;
+  }
+  function buildDataset(extra) {
+    const f = state.f;
+    const players = S.players.filter((p) => playerPass(p, f) && (!extra || extra(p)));
+    const inSet = new Set(players);
+    return {
+      players,
+      inSet,
+      levels: S.levels.filter((r) => inSet.has(r.p)),
+      dailies: S.dailies.filter((r) => inSet.has(r.p)),
+      purchases: S.purchases.filter((r) => inSet.has(r.p)),
+      activeDays: sum(players, (p) => p.active.length),
+    };
+  }
+  function compareGroups() {
+    if (state.compare === 'acq') {
+      return [['Paid', (p) => p.acq === 'paid'], ['Organik', (p) => p.acq === 'organic']];
+    }
+    if (state.compare === 'version') {
+      return [['Sürüm ' + state.verA, (p) => p.version === state.verA], ['Sürüm ' + state.verB, (p) => p.version === state.verB]];
+    }
+    return null;
+  }
+  // Groups drive every split view: one "Tümü" group, or the two compared groups.
+  // In a version split "Tümü" covers only the two chosen versions.
+  function groupsFor(compute) {
+    const groups = compareGroups();
+    if (!groups) {
+      const all = compute(buildDataset(null));
+      return { all, ms: [all], names: ['Tümü'] };
+    }
+    return {
+      all: compute(buildDataset((p) => groups.some((gr) => gr[1](p)))),
+      ms: groups.map((gr) => compute(buildDataset(gr[1]))),
+      names: groups.map((gr) => gr[0]),
+    };
+  }
+
+  // ---------- building blocks ----------
+  const COLORS = ['var(--paid)', 'var(--organic)', 'var(--s3)'];
+  const DOTS = ['paid', 'organic', 's3'];
+
+  function kpi(g, label, get, fmt, sub, mini) {
+    const value = get(g.all);
+    let split = '';
+    if (state.compare) {
+      split = '<div class="k-split">' + g.ms.map((m, i) => '<span><i class="dot ' + DOTS[i] + '"></i>' + g.names[i] + ' ' + fmt(get(m)) + '</span>').join('') + '</div>';
+    }
+    const subText = typeof sub === 'function' ? sub(g.all) : sub;
+    return '<div class="' + (mini ? 'mini' : 'card kpi') + '"><div class="k-label">' + label + '</div><div class="k-value">' + fmt(value) + '</div>'
+      + (subText ? '<div class="k-sub">' + subText + '</div>' : '') + split + '</div>';
+  }
+
+  function cell(g, get, fmt) {
+    if (!state.compare) return fmt(get(g.ms[0]));
+    return '<div class="pair">' + g.ms.map((m, i) => '<span><i class="dot ' + DOTS[i] + '"></i>' + fmt(get(m)) + '</span>').join('') + '</div>';
+  }
+
+  function table(g, cols, keys, opts) {
+    opts = opts || {};
+    const head = '<tr>' + cols.map((c) => '<th>' + c.h + '</th>').join('') + '</tr>';
+    const body = keys.map((key) => {
+      const tds = cols.map((c) => '<td>' + (c.raw ? c.raw(key) : cell(g, (m) => c.get(m, key), c.f)) + '</td>').join('');
+      return opts.click ? '<tr class="click" data-action="' + opts.click + '" data-key="' + key + '">' + tds + '</tr>' : '<tr>' + tds + '</tr>';
+    }).join('');
+    return '<div class="table-wrap"><table><thead>' + head + '</thead><tbody>' + body + '</tbody></table>'
+      + (opts.foot ? '<div class="table-foot">' + opts.foot + '</div>' : '') + '</div>';
+  }
+
+  function section(title, desc, body, right) {
+    return '<section class="card section"><div class="section-head"><div><h2>' + title + '</h2>' + (desc ? '<p>' + desc + '</p>' : '') + '</div>'
+      + (right || '') + '</div>' + body + '</section>';
+  }
+
+  function legend(names) {
+    if (names.length < 2) return '';
+    return '<div class="legend">' + names.map((n, i) => '<span><i class="dot ' + DOTS[i] + '"></i>' + n + '</span>').join('') + '</div>';
+  }
+
+  function select(action, value, options) {
+    return '<div class="field"><select data-action="' + action + '">' + options.map((o) => '<option value="' + o[0] + '"' + (o[0] === value ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></div>';
+  }
+
+  // Horizontal bar rows: used for funnels and share lists. values are 0..1 per group.
+  function barRows(g, rows, opts) {
+    opts = opts || {};
+    const head = '<div class="row head"><div>' + (opts.h1 || 'Adım') + '</div><div></div><div class="num">' + (opts.h2 || 'Oran') + '</div><div class="num">' + (opts.h3 || '') + '</div></div>';
+    const body = rows.map((r) => {
+      const vals = g.ms.map((m) => r.get(m));
+      const bars = vals.map((v, i) => '<div class="bar ' + (state.compare ? DOTS[i] : 'single') + '"><i style="width:' + Math.max(0, Math.min(100, (v || 0) * 100)) + '%"></i></div>').join('');
+      const tipText = esc(r.name) + '<br>' + g.ms.map((m, i) => g.names[i] + ': ' + (r.f || F.pct)(r.get(m))).join('<br>');
+      return '<div class="row' + (r.hot ? ' hot' : '') + '" data-tip="' + esc(tipText) + '"><div class="name">' + r.name + (r.code ? '<code>' + r.code + '</code>' : '') + '</div>'
+        + '<div class="bars' + (state.compare ? ' compare' : '') + '">' + bars + '</div>'
+        + '<div class="num">' + cell(g, r.get, r.f || F.pct) + '</div>'
+        + '<div class="num' + (r.dropClass ? ' drop' : '') + '">' + (r.third ? cell(g, r.third, r.f3 || F.pct) : '') + '</div></div>';
+    }).join('');
+    return '<div class="rows">' + head + body + '</div>';
+  }
+
+  function niceMax(v, isPct) {
+    if (isPct) return v > 0.5 ? 1 : v > 0.25 ? 0.5 : v > 0.1 ? 0.25 : 0.1;
+    if (v <= 0) return 1;
+    const mag = Math.pow(10, Math.floor(Math.log10(v)));
+    const n = v / mag;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+  }
+
+  // Vertical bars: one series, or Paid/Organik side by side.
+  function barChart(opts) {
+    const W = 1000;
+    const H = opts.height || 240;
+    const m = { l: 46, r: 8, t: 18, b: 26 };
+    const iw = W - m.l - m.r;
+    const ih = H - m.t - m.b;
+    const n = opts.categories.length;
+    const max = opts.max || niceMax(Math.max(0, ...opts.series.flatMap((s) => s.values.filter(ok))), opts.pct);
+    const band = iw / Math.max(1, n);
+    const k = opts.series.length;
+    const bw = Math.max(2, Math.min(34, (band * 0.7) / k - (k > 1 ? 1 : 0)));
+    const y = (v) => m.t + ih - (Math.max(0, v) / max) * ih;
+    let out = '<g class="grid">';
+    for (let i = 0; i <= 4; i++) {
+      const v = (max / 4) * i;
+      out += '<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y(v) + '" y2="' + y(v) + '"></line>';
+    }
+    out += '</g><g class="axis">';
+    for (let i = 0; i <= 4; i++) {
+      const v = (max / 4) * i;
+      out += '<text x="' + (m.l - 8) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + (opts.pct ? F.pct0(v) : opts.fmt(v)) + '</text>';
+    }
+    const every = Math.ceil(n / 24);
+    opts.categories.forEach((c, i) => {
+      if (i % every === 0) out += '<text x="' + (m.l + band * i + band / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + c + '</text>';
+    });
+    out += '</g>';
+    opts.categories.forEach((c, i) => {
+      const x0 = m.l + band * i + (band - (bw * k + 2 * (k - 1))) / 2;
+      opts.series.forEach((s, j) => {
+        const v = s.values[i];
+        if (!ok(v)) return;
+        const x = x0 + j * (bw + 2);
+        const top = y(v);
+        const h = m.t + ih - top;
+        const r = Math.min(4, bw / 2, h);
+        out += '<path fill="' + COLORS[s.color || j] + '" d="M' + x + ',' + (top + h) + 'V' + (top + r) + 'Q' + x + ',' + top + ' ' + (x + r) + ',' + top + 'H' + (x + bw - r) + 'Q' + (x + bw) + ',' + top + ' ' + (x + bw) + ',' + (top + r) + 'V' + (top + h) + 'Z"></path>';
+        if (k === 1 && n <= 22) out += '<text class="val" x="' + (x + bw / 2) + '" y="' + (top - 5) + '" text-anchor="middle">' + (opts.pct ? F.pct0(v) : opts.fmt(v)) + '</text>';
+      });
+      const tipText = esc(opts.tipLabel ? opts.tipLabel(i) : c) + '<br>' + opts.series.map((s) => esc(s.name) + ': ' + (opts.pct ? F.pct(s.values[i]) : opts.fmt(s.values[i]))).join('<br>');
+      out += '<rect class="hit" x="' + (m.l + band * i) + '" y="' + m.t + '" width="' + band + '" height="' + ih + '" data-tip="' + esc(tipText) + '"' + (opts.click ? ' data-action="' + opts.click + '" data-key="' + opts.keys[i] + '"' : '') + '></rect>';
+    });
+    return '<div class="chart"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + out + '</svg></div>';
+  }
+
+  function lineChart(opts) {
+    const W = 1000;
+    const H = opts.height || 220;
+    const m = { l: 52, r: 12, t: 14, b: 26 };
+    const iw = W - m.l - m.r;
+    const ih = H - m.t - m.b;
+    const n = opts.categories.length;
+    const max = opts.max || niceMax(Math.max(0, ...opts.series.flatMap((s) => s.values.filter(ok))), opts.pct);
+    const x = (i) => m.l + (n <= 1 ? iw / 2 : (iw * i) / (n - 1));
+    const y = (v) => m.t + ih - (Math.max(0, v) / max) * ih;
+    const fmt = opts.pct ? F.pct : opts.fmt;
+    let out = '<g class="grid">';
+    for (let i = 0; i <= 4; i++) out += '<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y((max / 4) * i) + '" y2="' + y((max / 4) * i) + '"></line>';
+    out += '</g><g class="axis">';
+    for (let i = 0; i <= 4; i++) out += '<text x="' + (m.l - 8) + '" y="' + (y((max / 4) * i) + 4) + '" text-anchor="end">' + (opts.pct ? F.pct0((max / 4) * i) : opts.fmt((max / 4) * i)) + '</text>';
+    const every = Math.ceil(n / 16);
+    opts.categories.forEach((c, i) => {
+      // the last label is drawn only when it cannot collide with the previous tick
+      if (i % every === 0 || (i === n - 1 && i % every >= every / 2)) out += '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + c + '</text>';
+    });
+    out += '</g>';
+    opts.series.forEach((s, j) => {
+      let d = '';
+      s.values.forEach((v, i) => {
+        if (!ok(v)) return;
+        d += (d ? 'L' : 'M') + x(i) + ',' + y(v);
+      });
+      out += '<path d="' + d + '" fill="none" stroke="' + COLORS[s.color || j] + '" stroke-width="2" stroke-linejoin="round"></path>';
+    });
+    const band = iw / Math.max(1, n - 1);
+    opts.categories.forEach((c, i) => {
+      const tipText = esc(c) + '<br>' + opts.series.map((s) => esc(s.name) + ': ' + fmt(s.values[i])).join('<br>');
+      out += '<rect class="hit" x="' + (x(i) - band / 2) + '" y="' + m.t + '" width="' + band + '" height="' + ih + '" data-tip="' + esc(tipText) + '"></rect>';
+    });
+    return '<div class="chart"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + out + '</svg></div>';
+  }
+
+  function series(g, values) {
+    return g.ms.map((m, i) => ({ name: g.names[i], values: values(m), color: state.compare ? i : 0 }));
+  }
+
+  // ---------- 00 Onboarding ----------
+  // Steps count only inside the first 7 days so cohorts and versions released on different dates compare fairly.
+  const wonInWindow = (p, lv) => p.wonDay[lv] !== undefined && p.wonDay[lv] <= S.ONBOARDING_WINDOW;
+
+  function computeOnboarding(ds) {
+    const n = ds.players.length;
+    const steps = S.ONBOARDING_TUTORIAL.map((s, i) => ({
+      code: s[0],
+      name: s[1],
+      count: ds.players.filter((p) => p.onbStep >= i).length,
+    }));
+    S.ONBOARDING_LEVELS.forEach((lv) => {
+      steps.push({
+        code: 'level_complete · L' + lv,
+        name: 'Level ' + lv + ' tamamlandı',
+        count: ds.players.filter((p) => wonInWindow(p, lv)).length,
+      });
+    });
+    steps.forEach((s, i) => {
+      s.share = ratio(s.count, n);
+      s.conv = i === 0 ? 1 : ratio(s.count, steps[i - 1].count);
+      s.loss = i === 0 ? 0 : ratio(steps[i - 1].count - s.count, n);
+    });
+    const mature1 = ds.players.filter((p) => p.installDay + 1 <= S.OBS_END);
+    // Same 7-day window as the funnel: a use after day 7 counts as "never" so late versions are not penalised.
+    const usedLevel = (p, key) => (p.firstUseDay[key] !== undefined && p.firstUseDay[key] <= S.ONBOARDING_WINDOW ? p.firstUse[key] : undefined);
+    const intros = [['burn', 'Burn', S.UNLOCK.burn], ['move', 'Move', S.UNLOCK.move], ['fan', 'Fan', S.UNLOCK.fan]].map(([key, name, at]) => {
+      const reached = ds.players.filter((p) => at === 1 || wonInWindow(p, at - 1));
+      return {
+        key,
+        name,
+        at,
+        reached: reached.length,
+        same: ratio(reached.filter((p) => usedLevel(p, key) === at).length, reached.length),
+        within3: ratio(reached.filter((p) => usedLevel(p, key) && usedLevel(p, key) <= at + 2).length, reached.length),
+        never: ratio(reached.filter((p) => !usedLevel(p, key)).length, reached.length),
+      };
+    });
+    return {
+      n,
+      steps,
+      tutorial: ratio(ds.players.filter((p) => wonInWindow(p, 1)).length, n),
+      l10: ratio(ds.players.filter((p) => wonInWindow(p, 10)).length, n),
+      d1: ratio(mature1.filter((p) => p.active.includes(1)).length, mature1.length),
+      firstSession: quantile(ds.players.map((p) => p.firstSessionMin), 0.5),
+      intros,
+    };
+  }
+
+  function renderOnboarding() {
+    const g = groupsFor(computeOnboarding);
+    const steps = g.all.steps;
+    const hot = steps.map((s, i) => [s.loss, i]).sort((a, b) => b[0] - a[0]).slice(0, 3).map((x) => x[1]);
+    const kpis = '<div class="kpis">'
+      + kpi(g, 'Tutorial tamamlama', (m) => m.tutorial, F.pct, 'Level 1’i geçen / kurulum · ilk 7 gün')
+      + kpi(g, 'Level 10’u geçen', (m) => m.l10, F.pct, 'Kurulumların payı · ilk 7 gün')
+      + kpi(g, 'D1 dönüş', (m) => m.d1, F.pct, 'Ertesi gün açan / kurulum')
+      + kpi(g, 'İlk oturum süresi', (m) => m.firstSession, F.min, 'P50 · aktif oyun süresi')
+      + '</div>';
+    const rows = steps.map((s, i) => ({
+      name: s.name,
+      code: s.code,
+      hot: hot.includes(i) && i > 0,
+      get: (m) => m.steps[i].share,
+      third: (m) => (i === 0 ? null : 1 - m.steps[i].conv),
+      dropClass: true,
+    }));
+    const funnel = section('Onboarding hunisi', 'Kurulumdan sonraki ilk 7 gün içinde her event’i tamamlayan oyuncu payı. Vurgulu satırlar en büyük 3 kırılma.' + (state.compare === 'version' ? ' Sürümler farklı tarihlerde yayınlandı; sabit pencere karşılaştırmayı adil tutar.' : ''),
+      barRows(g, rows, { h1: 'Event', h2: 'Kurulumdan', h3: 'Adım kaybı' }), legend(g.names));
+    const intro = section('Booster tanıtımı → ilk kullanım', 'İlk 7 günde unlock level’ına ulaşan oyuncular içinde.',
+      table(g, [
+        { h: 'Booster', raw: (k) => g.all.intros[k].name },
+        { h: 'Unlock', raw: (k) => 'L' + g.all.intros[k].at },
+        { h: 'Ulaşan', get: (m, k) => m.intros[k].reached, f: F.int },
+        { h: 'Aynı level’da kullandı', get: (m, k) => m.intros[k].same, f: F.pct },
+        { h: '3 level içinde', get: (m, k) => m.intros[k].within3, f: F.pct },
+        { h: 'Hiç kullanmadı', get: (m, k) => m.intros[k].never, f: F.pct },
+      ], [0, 1, 2]));
+    return kpis + funnel + intro;
+  }
+
+  // ---------- 01 Overview ----------
+  const COHORT_DAYS = [0, 1, 2, 3, 4, 5, 6, 7, 14, 30];
+  const TREND_METRICS = [
+    ['dau', 'DAU', (m) => m.dau, F.int],
+    ['installs', 'Kurulum', (m) => m.installs, F.int],
+    ['rev', 'Toplam gelir', (m) => m.rev, F.usd],
+    ['ad', 'Reklam geliri', (m) => m.revAd, F.usd],
+    ['iap', 'IAP geliri', (m) => m.revIap, F.usd],
+  ];
+
+  function computeOverview(ds) {
+    const from = dayIndexOf(state.f.from);
+    const days = [];
+    for (let d = from; d <= S.OBS_END; d++) days.push(d);
+    const dau = days.map(() => 0);
+    const installs = days.map(() => 0);
+    const rev = days.map(() => 0);
+    const revIap = days.map(() => 0);
+    const revAd = days.map(() => 0);
+    const to = dayIndexOf(state.f.to);
+    const cohorts = [];
+    for (let d = from; d <= to; d++) cohorts.push({ day: d, n: 0, active: COHORT_DAYS.map(() => 0) });
+    const ret = new Array(31).fill(0);
+    const retBase = new Array(31).fill(0);
+    let ltv7 = 0;
+    let ltv7n = 0;
+    let ltv30 = 0;
+    let ltv30n = 0;
+    let iap = 0;
+    let ad = 0;
+    for (const p of ds.players) {
+      if (p.installDay >= from) installs[p.installDay - from]++;
+      const cohort = cohorts[p.installDay - from];
+      if (cohort) {
+        cohort.n++;
+        COHORT_DAYS.forEach((n, i) => {
+          if (p.active.includes(n)) cohort.active[i]++;
+        });
+      }
+      for (const off of p.active) {
+        const abs = p.installDay + off;
+        if (abs >= from) dau[abs - from]++;
+        if (off <= 30) ret[off]++;
+      }
+      for (let n = 0; n <= 30; n++) if (p.installDay + n <= S.OBS_END) retBase[n]++;
+      let r7 = 0;
+      let r30 = 0;
+      for (const [bucket, kind] of [[p.revIap, 'iap'], [p.revAd, 'ad']]) {
+        for (const k in bucket) {
+          const off = +k;
+          const v = bucket[k];
+          if (kind === 'iap') iap += v;
+          else ad += v;
+          const abs = p.installDay + off;
+          if (abs >= from) {
+            rev[abs - from] += v;
+            (kind === 'iap' ? revIap : revAd)[abs - from] += v;
+          }
+          if (off <= 7) r7 += v;
+          if (off <= 30) r30 += v;
+        }
+      }
+      if (p.installDay + 7 <= S.OBS_END) {
+        ltv7 += r7;
+        ltv7n++;
+      }
+      if (p.installDay + 30 <= S.OBS_END) {
+        ltv30 += r30;
+        ltv30n++;
+      }
+    }
+    const retention = ret.map((v, i) => ratio(v, retBase[i]));
+    const dauSum = sum(dau);
+    // A cohort cell exists only once day N has been observed for that install date.
+    for (const c of cohorts) c.ret = COHORT_DAYS.map((n, i) => (c.day + n <= S.OBS_END ? ratio(c.active[i], c.n) : null));
+    const cohortTotal = COHORT_DAYS.map((n, i) => {
+      const seen = cohorts.filter((c) => c.day + n <= S.OBS_END);
+      return ratio(sum(seen, (c) => c.active[i]), sum(seen, (c) => c.n));
+    });
+    return {
+      n: ds.players.length,
+      days,
+      dau,
+      installs,
+      rev,
+      revIap,
+      revAd,
+      cohorts,
+      cohortTotal,
+      retention,
+      dauAvg: dauSum / Math.max(1, days.length),
+      iap,
+      ad,
+      revenue: iap + ad,
+      arpdau: ratio(iap + ad, dauSum),
+      ltv7: ratio(ltv7, ltv7n),
+      ltv30: ratio(ltv30, ltv30n),
+      firstP50: quantile(ds.players.map((p) => p.firstSessionMin), 0.5),
+      firstP90: quantile(ds.players.map((p) => p.firstSessionMin), 0.9),
+      d0P50: quantile(ds.players.map((p) => p.d0Min), 0.5),
+      d0P90: quantile(ds.players.map((p) => p.d0Min), 0.9),
+    };
+  }
+
+  function renderOverview() {
+    const g = groupsFor(computeOverview);
+    const kpis = '<div class="kpis five">'
+      + kpi(g, 'Kurulum', (m) => m.n, F.int, 'Seçili kohort')
+      + kpi(g, 'Ortalama DAU', (m) => m.dauAvg, F.int, 'Kohort başlangıcından gözlem sonuna')
+      + kpi(g, 'D1 retention', (m) => m.retention[1], F.pct, 'Takibi tamamlanmış kurulumlar')
+      + kpi(g, 'D7 retention', (m) => m.retention[7], F.pct, 'Takibi tamamlanmış kurulumlar')
+      + kpi(g, 'D30 retention', (m) => m.retention[30], F.pct, 'Takibi tamamlanmış kurulumlar')
+      + kpi(g, 'İlk oturum süresi', (m) => m.firstP50, F.min, (m) => 'P50 · P90: ' + F.min(m.firstP90))
+      + kpi(g, 'D0 oyun süresi', (m) => m.d0P50, F.min, (m) => 'Kurulum günü toplam · P50 · P90: ' + F.min(m.d0P90))
+      + kpi(g, 'Toplam gelir', (m) => m.revenue, F.usd, (m) => 'IAP ' + F.usd(m.iap) + ' · Reklam ' + F.usd(m.ad))
+      + kpi(g, 'ARPDAU', (m) => m.arpdau, F.usd3, 'Gelir / DAU günleri')
+      + kpi(g, 'LTV D7', (m) => m.ltv7, F.usd3, (m) => 'Kurulum başı gelir · D30: ' + F.usd3(m.ltv30))
+      + '</div>';
+    // One metric at a time: mixing counts and revenue would need a second y-axis.
+    const trendDef = TREND_METRICS.find((t) => t[0] === state.trend) || TREND_METRICS[0];
+    const chips = '<div class="chips">' + TREND_METRICS.map((t) => '<button class="chip' + (t[0] === trendDef[0] ? ' on' : '') + '" data-action="trend" data-key="' + t[0] + '">' + t[1] + '</button>').join('') + '</div>';
+    const trend = section('Günlük trend', 'Kurulum kohortu filtresine göre, gözlem sonu ' + shortDate(S.OBS_END) + '.2026.',
+      chips + lineChart({ categories: g.all.days.map(shortDate), series: series(g, trendDef[2]), fmt: trendDef[3] }),
+      legend(g.names));
+    const days = [];
+    for (let i = 0; i <= 30; i++) days.push('D' + i);
+    const retention = section('Retention eğrisi', 'Kurulumdan N gün sonra aktif olan oyuncu payı. Payda: o günü gözlemlenebilen kurulumlar.',
+      lineChart({ categories: days, series: series(g, (m) => m.retention), pct: true, max: 1 }), legend(g.names));
+    const cohort = section('Günlük cohort retention', 'Satır: kurulum günü · Hücre: o gün kurulanların N. gün aktif olma oranı. Renk her sütunda cohort’ları birbirine göre sıralar.',
+      cohortTables(g), '<div class="heat-legend"><span>Düşük</span><i></i><span>Yüksek</span></div>');
+    return kpis + trend + retention + cohort;
+  }
+
+  // Shading is relative within each column across every visible cohort (both groups when comparing),
+  // so a weak install day reads light and a strong one dark regardless of how far D-N is.
+  function cohortTables(g) {
+    const ranges = COHORT_DAYS.map((n, i) => {
+      const vals = g.ms.flatMap((m) => m.cohorts.map((c) => c.ret[i]).filter(ok));
+      return [Math.min(...vals), Math.max(...vals)];
+    });
+    const heat = (v, i) => {
+      if (!ok(v)) return '<td class="empty"></td>';
+      const [lo, hi] = ranges[i];
+      if (!(hi > lo)) return '<td>' + F.pct(v) + '</td>'; // D0 is 100% for everyone: nothing to rank
+      const t = (v - lo) / (hi - lo);
+      // Theme tokens set both ramp ends, so the light-to-dark reading holds in either theme.
+      const bg = 'color-mix(in srgb, var(--heat-hi) ' + Math.round(t * 100) + '%, var(--heat-lo))';
+      return '<td style="background:' + bg + ';color:' + (t > 0.55 ? 'var(--heat-text-hi)' : 'var(--text)') + '">' + F.pct(v) + '</td>';
+    };
+    const head = '<tr><th>Kurulum günü</th><th>Kurulum</th>' + COHORT_DAYS.map((n) => '<th>D' + n + '</th>').join('') + '</tr>';
+    return g.ms.map((m, gi) => {
+      const total = '<tr class="total"><td>Tümü</td><td>' + F.int(sum(m.cohorts, (c) => c.n)) + '</td>' + m.cohortTotal.map((v) => '<td>' + F.pct(v) + '</td>').join('') + '</tr>';
+      const rows = m.cohorts.map((c) => '<tr><td>' + shortDate(c.day) + '.2026</td><td>' + F.int(c.n) + '</td>' + c.ret.map((v, i) => (c.n ? heat(v, i) : '<td class="empty"></td>')).join('') + '</tr>').join('');
+      const label = state.compare ? '<h3 class="group-title"><i class="dot ' + DOTS[gi] + '"></i>' + g.names[gi] + '</h3>' : '';
+      return label + '<div class="table-wrap cohort"><table><thead>' + head + '</thead><tbody>' + total + rows + '</tbody></table></div>';
+    }).join('');
+  }
+
+  // ---------- 02 Level ----------
+  const LEVEL_METRICS = [
+    ['reach', 'Ulaşma · kurulumların payı', true],
+    ['pass', 'Geçme oranı', true],
+    ['first', 'İlk denemede geçme', true],
+    ['retry', 'Retry yapan oyuncu', true],
+    ['churn7', '7 gün geri dönmeme', true],
+    ['assist', 'Yardım kullanan oyuncu', true],
+    ['minsP50', 'Geçene kadar aktif süre (P50, dk)', false],
+  ];
+
+  function levelStats(recs, nPlayers) {
+    const won = recs.filter((r) => r.won);
+    const nonPayer = recs.filter((r) => !r.payer);
+    const payer = recs.filter((r) => r.payer);
+    const mature = recs.filter((r) => r.mature);
+    const failers = recs.filter((r) => r.fails > 0);
+    return {
+      starters: recs.length,
+      reach: ratio(recs.length, nPlayers),
+      pass: ratio(won.length, recs.length),
+      first: ratio(won.filter((r) => r.attempts === 1).length, recs.length),
+      retry: ratio(recs.filter((r) => r.attempts > 1).length, recs.length),
+      retries: sum(recs, (r) => r.attempts - 1),
+      restarts: sum(recs, (r) => r.restarts),
+      minsP50: quantile(won.map((r) => r.mins), 0.5),
+      minsP90: quantile(won.map((r) => r.mins), 0.9),
+      triesP50: quantile(won.map((r) => r.attempts), 0.5),
+      triesP90: quantile(won.map((r) => r.attempts), 0.9),
+      assist: ratio(recs.filter((r) => r.burn || r.move || r.fan || r.extra || r.slot || r.adCard || r.contCoin || r.contAd || r.failPack).length, recs.length),
+      cont: ratio(recs.filter((r) => r.contCoin || r.contAd || r.failPack).length, recs.length),
+      abandon: ratio(recs.filter((r) => r.abandon > 0).length, recs.length),
+      firstPay: ratio(nonPayer.filter((r) => r.firstPay).length, nonPayer.length),
+      firstPayN: [nonPayer.filter((r) => r.firstPay).length, nonPayer.length],
+      repeatPay: ratio(payer.filter((r) => r.repeatPay).length, payer.length),
+      repeatPayN: [payer.filter((r) => r.repeatPay).length, payer.length],
+      churn7: ratio(mature.filter((r) => r.churn7).length, mature.length),
+      get2x: ratio(won.filter((r) => r.get2x).length, won.length),
+      failSeen: ratio(failers.length, recs.length),
+      failers,
+      recs,
+    };
+  }
+
+  function computeLevel(ds) {
+    const f = state.f;
+    const recs = ds.levels.filter((r) => levelPass(r, f));
+    const byLevel = {};
+    for (let lv = f.lvFrom; lv <= f.lvTo; lv++) byLevel[lv] = [];
+    for (const r of recs) byLevel[r.level].push(r);
+    const per = {};
+    for (const lv in byLevel) per[lv] = levelStats(byLevel[lv], ds.players.length);
+    const total = levelStats(recs, ds.players.length);
+    total.unique = new Set(recs.map((r) => r.p)).size;
+    return { per, total, byLevel };
+  }
+
+  function renderLevel() {
+    const g = groupsFor(computeLevel);
+    const f = state.f;
+    const t = (m) => m.total;
+    const kpis = '<div class="kpis">'
+      + kpi(g, 'Başlayan oyuncu', (m) => m.total.unique, F.int, 'Seçili levellerde tekil oyuncu')
+      + kpi(g, 'Geçme oranı', (m) => t(m).pass, F.pct, 'Geçilen / başlanan oyuncu–level')
+      + kpi(g, 'İlk denemede geçme', (m) => t(m).first, F.pct, 'Tek denemede geçen / başlanan')
+      + kpi(g, 'Geçene kadar süre', (m) => t(m).minsP50, F.min, (m) => 'P50 · P90: ' + F.min(m.total.minsP90))
+      + kpi(g, '7 gün geri dönmeme', (m) => t(m).churn7, F.pct, 'Level’dan sonra 7 gün dönmeyen')
+      + kpi(g, 'Yarıda bırakma', (m) => t(m).abandon, F.pct, 'Oturumu level ortasında biten')
+      + kpi(g, 'İlk ödeme', (m) => t(m).firstPay, F.pct, (m) => F.int(m.total.firstPayN[0]) + ' / ' + F.int(m.total.firstPayN[1]) + ' non-payer giriş')
+      + kpi(g, 'Tekrar ödeme', (m) => t(m).repeatPay, F.pct, (m) => F.int(m.total.repeatPayN[0]) + ' / ' + F.int(m.total.repeatPayN[1]) + ' payer giriş')
+      + '</div>';
+    const lvKeys = [];
+    for (let lv = f.lvFrom; lv <= f.lvTo; lv++) lvKeys.push(lv);
+    const metric = LEVEL_METRICS.find((x) => x[0] === state.levelMetric);
+    const chart = section('Level boyunca', 'Bir çubuğa tıkla: level detayı açılır.',
+      barChart({
+        categories: lvKeys.map((lv) => String(lv)),
+        keys: lvKeys,
+        series: series(g, (m) => lvKeys.map((lv) => m.per[lv][metric[0]])),
+        pct: metric[2],
+        fmt: F.dec,
+        click: 'level',
+        tipLabel: (i) => 'Level ' + lvKeys[i],
+      }),
+      '<div class="toolbar">' + legend(g.names) + select('levelMetric', metric[0], LEVEL_METRICS.map((x) => [x[0], x[1]])) + '</div>');
+    const tbl = section('Level karşılaştırması', 'Satıra tıkla: retry, fail hunisi ve yardım kullanımı.',
+      table(g, [
+        { h: 'Level', raw: (lv) => '<a>Level ' + lv + '</a>' + (g.all.per[lv].starters < 50 ? ' <span class="low">az örnek</span>' : '') },
+        { h: 'Yeni', raw: (lv) => (S.NEW_AT[lv] ? '<span class="tag">' + S.NEW_AT[lv] + '</span>' : '') },
+        { h: 'Başlayan', get: (m, lv) => m.per[lv].starters, f: F.int },
+        { h: 'Geçme', get: (m, lv) => m.per[lv].pass, f: F.pct },
+        { h: 'İlk deneme', get: (m, lv) => m.per[lv].first, f: F.pct },
+        { h: 'Retry', get: (m, lv) => m.per[lv].retry, f: F.pct },
+        { h: 'Süre dk · P50 / P90', get: (m, lv) => m.per[lv], f: (s) => pair(s.minsP50, s.minsP90, F.dec) },
+        { h: 'Deneme · P50 / P90', get: (m, lv) => m.per[lv], f: (s) => pair(s.triesP50, s.triesP90, F.int) },
+        { h: 'Yardım', get: (m, lv) => m.per[lv].assist, f: F.pct },
+        { h: 'Devam', get: (m, lv) => m.per[lv].cont, f: F.pct },
+        { h: 'İlk ödeme', get: (m, lv) => m.per[lv].firstPay, f: F.pct },
+        { h: '7g dönmeme', get: (m, lv) => m.per[lv].churn7, f: F.pct },
+      ], lvKeys, { click: 'level', foot: 'Süre ve deneme: level’ı geçenler · Yardım: booster, Extra, altınla slot, reklam kartı veya devam · Devam: fail ekranında altın, reklam ya da fail paketi · 50’den az oyuncuda “az örnek”.' }));
+    return kpis + chart + tbl;
+  }
+
+  function renderLevelDrawer(lv) {
+    const g = groupsFor((ds) => {
+      const recs = ds.levels.filter((r) => r.level === lv && levelPass(r, state.f, true));
+      return levelStats(recs, ds.players.length);
+    });
+    const a = g.all;
+    const gate = { burn: S.UNLOCK.burn, move: S.UNLOCK.move, fan: S.UNLOCK.fan, adCard: S.UNLOCK.adCard };
+    const helps = [
+      ['burn', 'Burn', (r) => r.burn],
+      ['move', 'Move', (r) => r.move],
+      ['fan', 'Fan', (r) => r.fan],
+      ['extra', 'Extra · süreli slot', (r) => r.extra],
+      ['slot', 'Altınla slot', (r) => r.slot],
+      ['adCard', 'Reklam kartı', (r) => r.adCard],
+      ['cont', 'Devam (altın · reklam · paket)', (r) => r.contCoin + r.contAd + r.failPack],
+    ].filter((h) => !gate[h[0]] || lv >= gate[h[0]]);
+    const helpStat = (m, i) => {
+      const fn = helps[i][2];
+      const users = m.recs.filter((r) => fn(r) > 0);
+      const non = m.recs.filter((r) => !fn(r));
+      return {
+        share: ratio(users.length, m.recs.length),
+        uses: sum(m.recs, fn),
+        passUsers: ratio(users.filter((r) => r.won).length, users.length),
+        passNon: ratio(non.filter((r) => r.won).length, non.length),
+      };
+    };
+    const failRow = (name, fn) => ({ name, get: (m) => ratio(m.failers.filter(fn).length, m.failers.length) });
+    let html = '<div class="drawer-head"><div><small>LEVEL İNCELEMESİ</small><h2>Level ' + lv + '</h2><p>'
+      + F.int(a.starters) + ' başlayan oyuncu' + (S.NEW_AT[lv] ? ' · Yeni: ' + S.NEW_AT[lv] : '') + ' · 7 günlük takip</p></div>'
+      + '<button class="btn" data-action="close">Kapat ×</button></div>';
+    html += '<div class="mini-kpis">'
+      + kpi(g, 'Geçme oranı', (m) => m.pass, F.pct, (m) => 'İlk denemede ' + F.pct(m.first), true)
+      + kpi(g, 'Geçene kadar aktif süre', (m) => m.minsP50, F.min, (m) => 'P50 · P90: ' + F.min(m.minsP90), true)
+      + kpi(g, 'Retry yapan oyuncu', (m) => m.retry, F.pct, (m) => F.int(m.retries) + ' retry · ' + F.int(m.restarts) + ' Settings restart', true)
+      + kpi(g, '7 gün geri dönmeme', (m) => m.churn7, F.pct, 'Bu level’da kalıp dönmeyen', true)
+      + '</div>';
+    html += '<h3>Fail hunisi</h3>';
+    html += barRows(g, [
+      { name: 'Fail ekranını gören', get: (m) => m.failSeen },
+      failRow('Devam · altın', (r) => r.contCoin > 0),
+      failRow('Devam · reklam', (r) => r.contAd > 0),
+      failRow('Fail paketi · satın alma', (r) => r.failPack > 0),
+      failRow('Kapattı · −1 can', (r) => r.failClose > 0),
+      failRow('Sonunda geçti', (r) => r.won),
+    ], { h1: 'Adım', h2: 'Oran' });
+    html += '<p class="note">İlk satır başlayanlara, diğerleri fail ekranını görenlere oranlanır.</p>';
+    html += '<h3>Yardım kullanımı</h3>';
+    html += table(g, [
+      { h: 'Yardım', raw: (i) => helps[i][1] },
+      { h: 'Kullanan', get: (m, i) => helpStat(m, i).share, f: F.pct },
+      { h: 'Adet', get: (m, i) => helpStat(m, i).uses, f: F.int },
+      { h: 'Kullananda geçme', get: (m, i) => helpStat(m, i).passUsers, f: F.pct },
+      { h: 'Kullanmayanda', get: (m, i) => helpStat(m, i).passNon, f: F.pct },
+    ], helps.map((h, i) => i));
+    html += '<h3>Ödeme ve level sonu</h3><div class="mini-kpis">'
+      + kpi(g, 'İlk ödeme', (m) => m.firstPay, F.pct, (m) => F.int(m.firstPayN[0]) + ' / ' + F.int(m.firstPayN[1]) + ' non-payer', true)
+      + kpi(g, 'Tekrar ödeme', (m) => m.repeatPay, F.pct, (m) => F.int(m.repeatPayN[0]) + ' / ' + F.int(m.repeatPayN[1]) + ' payer', true)
+      + kpi(g, 'Get2X izleyen', (m) => m.get2x, F.pct, 'Geçenler içinde', true)
+      + kpi(g, 'Yarıda bırakma', (m) => m.abandon, F.pct, 'Oturumu level ortasında biten', true)
+      + '</div>';
+    return html;
+  }
+
+  // ---------- 03 Ads ----------
+  const INTER_ROWS = [
+    ['l4', 'Level 4 sonrası · özel ilk reklam'],
+    ['deal', 'Deal tıklaması'],
+    ['next', 'Next · level geçişi'],
+  ];
+  function computeAds(ds) {
+    const place = {};
+    for (const [key] of S.PLACEMENTS) place[key] = { offered: 0, clicked: 0, rewarded: 0, failed: 0, users: 0 };
+    const inter = {};
+    for (const [key] of INTER_ROWS) inter[key] = { shown: 0, failed: 0, quit: 0 };
+    let watchers = 0;
+    let adRev = 0;
+    let banner = 0;
+    for (const p of ds.players) {
+      let any = false;
+      for (const k in p.ads) {
+        const a = p.ads[k];
+        const s = place[k];
+        s.offered += a[0];
+        s.clicked += a[1];
+        s.rewarded += a[2];
+        s.failed += a[3];
+        if (a[2] > 0) {
+          s.users++;
+          any = true;
+        }
+      }
+      for (const k in p.inter) {
+        inter[k].shown += p.inter[k][0];
+        inter[k].failed += p.inter[k][1];
+        inter[k].quit += p.inter[k][2];
+        if (p.inter[k][0]) any = true;
+      }
+      if (any) watchers++;
+      adRev += sumObj(p.revAd);
+      banner += p.banner;
+    }
+    const daily = {};
+    for (const p of ds.players) {
+      for (const k in p.revAd) {
+        const abs = p.installDay + +k;
+        daily[abs] = (daily[abs] || 0) + p.revAd[k];
+      }
+    }
+    const n = ds.players.length;
+    const ad = ds.activeDays;
+    return {
+      place,
+      inter,
+      watchers: ratio(watchers, n),
+      rewardedPerDau: ratio(sum(Object.values(place), (s) => s.rewarded), ad),
+      interPerDau: ratio(sum(Object.values(inter), (s) => s.shown), ad),
+      adRev,
+      adArpdau: ratio(adRev, ad),
+      banner,
+      bannerPerDau: ratio(banner, ad),
+      n,
+      ad,
+      daily,
+    };
+  }
+
+  function renderAds() {
+    const g = groupsFor(computeAds);
+    const kpis = '<div class="kpis">'
+      + kpi(g, 'Reklam izleyen oyuncu', (m) => m.watchers, F.pct, 'En az 1 rewarded veya interstitial')
+      + kpi(g, 'Rewarded / DAU', (m) => m.rewardedPerDau, F.dec2, 'Ödül verilen izleme · aktif gün başına')
+      + kpi(g, 'Interstitial / DAU', (m) => m.interPerDau, F.dec2, 'Gösterim · aktif gün başına')
+      + kpi(g, 'Reklam geliri', (m) => m.adRev, F.usd, (m) => 'ARPDAU ' + F.usd3(m.adArpdau))
+      + '</div>';
+    const from = dayIndexOf(state.f.from);
+    const days = [];
+    for (let d = from; d <= S.OBS_END; d++) days.push(d);
+    const trend = section('Günlük reklam geliri', 'Rewarded + interstitial + banner.',
+      lineChart({ categories: days.map(shortDate), series: series(g, (m) => days.map((d) => m.daily[d] || 0)), fmt: F.usd }), legend(g.names));
+    const placeKeys = S.PLACEMENTS.map((x, i) => i);
+    const rewarded = section('Rewarded yerleşimleri', 'Teklif: reklam butonunun gösterildiği an. Tamamlama: tıklayanlar içinde ödül alan.',
+      table(g, [
+        { h: 'Yerleşim', raw: (i) => S.PLACEMENTS[i][1] + ' <span class="tag">' + S.PLACEMENTS[i][2] + '</span>' },
+        { h: 'Teklif', get: (m, i) => m.place[S.PLACEMENTS[i][0]].offered, f: F.int },
+        { h: 'Tıklama', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].clicked, m.place[S.PLACEMENTS[i][0]].offered), f: F.pct },
+        { h: 'Tamamlama', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].rewarded, m.place[S.PLACEMENTS[i][0]].clicked), f: F.pct },
+        { h: 'Yüklenemedi', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].failed, m.place[S.PLACEMENTS[i][0]].clicked), f: F.pct },
+        { h: 'İzleyen oyuncu', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].users, m.n), f: F.pct },
+        { h: 'DAU başına', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].rewarded, m.ad), f: F.dec2 },
+      ], placeKeys, { foot: 'Booster, can ve devam reklamları yalnızca altın yetmediğinde gösterilir.' }));
+    const interKeys = [0, 1, 2, 3];
+    const interRow = (m, i) => (i < 3 ? m.inter[INTER_ROWS[i][0]] : null);
+    const forced = section('Interstitial ve banner', 'No Ads sahiplerine gösterilmez. 60 sn içinde bırakma: reklamdan sonra oturum bitti.',
+      table(g, [
+        { h: 'Tür · tetikleyici', raw: (i) => (i < 3 ? INTER_ROWS[i][1] : 'Banner · L4+') },
+        { h: 'Gösterim', get: (m, i) => (i < 3 ? interRow(m, i).shown : m.banner), f: F.int },
+        { h: 'DAU başına', get: (m, i) => ratio(i < 3 ? interRow(m, i).shown : m.banner, m.ad), f: F.dec2 },
+        { h: 'Yüklenemedi', get: (m, i) => (i < 3 ? ratio(interRow(m, i).failed, interRow(m, i).shown + interRow(m, i).failed) : null), f: F.pct },
+        { h: '60 sn içinde bırakma', get: (m, i) => (i < 3 ? ratio(interRow(m, i).quit, interRow(m, i).shown) : null), f: F.pct },
+      ], interKeys));
+    return kpis + trend + rewarded + forced;
+  }
+
+  // ---------- 04 Market & Offers ----------
+  const OFFERS = [
+    ['welcome', 'Welcome', 'L3’e ulaşan', (p) => p.maxWon >= 2],
+    ['starter', 'Starter (4 kademe)', 'L6’ya ulaşan', (p) => p.maxWon >= 5],
+    ['noads', 'No Ads', 'Interstitial gören', (p) => Object.values(p.inter).some((a) => a[0] > 0)],
+    ['fail_pack', 'Fail paketi', 'Fail ekranı gören', (p) => !!p.offers.fail_pack],
+  ];
+  const MARKET_SOURCES = [
+    ['hud', 'HUD · Market butonu'],
+    ['booster', 'Booster · altın yetmedi'],
+    ['extra', 'Extra · altın yetmedi'],
+    ['slot', 'Slot · altın yetmedi'],
+    ['fail', 'Fail ekranı · altın yetmedi'],
+    ['lives', 'Can penceresi'],
+  ];
+  function computeMarket(ds) {
+    const n = ds.players.length;
+    const revenue = sum(ds.purchases, (o) => o.usd);
+    const payers = ds.players.filter((p) => p.purchases.length).length;
+    const mature7 = ds.players.filter((p) => p.installDay + 7 <= S.OBS_END);
+    const offers = {};
+    for (const [key, , , eligibleFn] of OFFERS) {
+      const eligible = ds.players.filter(eligibleFn);
+      const shownPlayers = eligible.filter((p) => p.offers[key] && p.offers[key][0] > 0);
+      const shown = sum(shownPlayers, (p) => p.offers[key][0]);
+      const clicked = sum(shownPlayers, (p) => p.offers[key][1]);
+      const orders = ds.purchases.filter((o) => o.source === 'offer:' + key);
+      offers[key] = {
+        eligible: eligible.length,
+        shownShare: ratio(shownPlayers.length, eligible.length),
+        shown,
+        ctr: ratio(clicked, shown),
+        buyers: new Set(orders.map((o) => o.p)).size,
+        conv: ratio(new Set(orders.map((o) => o.p)).size, shownPlayers.length),
+        revenue: sum(orders, (o) => o.usd),
+      };
+    }
+    const products = {};
+    for (const id in S.PRODUCTS) products[id] = { count: 0, buyers: new Set(), revenue: 0, first: 0 };
+    for (const o of ds.purchases) {
+      const s = products[o.product];
+      s.count++;
+      s.buyers.add(o.p);
+      s.revenue += o.usd;
+      if (o.first) s.first++;
+    }
+    const sources = {};
+    for (const [key] of MARKET_SOURCES) sources[key] = { opens: 0, users: 0, buys: 0 };
+    for (const p of ds.players) {
+      for (const k in p.market) {
+        if (!sources[k]) continue;
+        sources[k].opens += p.market[k][0];
+        sources[k].buys += p.market[k][1];
+        sources[k].users++;
+      }
+    }
+    return {
+      n,
+      revenue,
+      orders: ds.purchases.length,
+      payer: ratio(payers, n),
+      payers,
+      arppu: ratio(revenue, payers),
+      first7: ratio(mature7.filter((p) => p.purchases.length && p.purchases[0].day <= 7).length, mature7.length),
+      offers,
+      products,
+      sources,
+    };
+  }
+
+  function renderMarket() {
+    const g = groupsFor(computeMarket);
+    const kpis = '<div class="kpis">'
+      + kpi(g, 'IAP geliri', (m) => m.revenue, F.usd, (m) => F.int(m.orders) + ' satın alma')
+      + kpi(g, 'Payer oranı', (m) => m.payer, F.pct, (m) => F.int(m.payers) + ' ödeme yapan oyuncu')
+      + kpi(g, 'ARPPU', (m) => m.arppu, F.usd, 'Gelir / ödeme yapan')
+      + kpi(g, 'İlk 7 günde ödeme', (m) => m.first7, F.pct, '7 günü dolmuş kurulumlar')
+      + '</div>';
+    const offerKeys = [0, 1, 2, 3];
+    const offers = section('Teklifler', 'Uygun oyuncu → teklifi gören → tıklama → satın alma. Popup ve HUD ikonu birlikte sayılır.',
+      table(g, [
+        { h: 'Teklif', raw: (i) => OFFERS[i][1] },
+        { h: 'Uygunluk', raw: (i) => '<span class="tag">' + OFFERS[i][2] + '</span>' },
+        { h: 'Uygun oyuncu', get: (m, i) => m.offers[OFFERS[i][0]].eligible, f: F.int },
+        { h: 'Gören', get: (m, i) => m.offers[OFFERS[i][0]].shownShare, f: F.pct },
+        { h: 'Gösterim', get: (m, i) => m.offers[OFFERS[i][0]].shown, f: F.int },
+        { h: 'Tıklama', get: (m, i) => m.offers[OFFERS[i][0]].ctr, f: F.pct },
+        { h: 'Satın alan', get: (m, i) => m.offers[OFFERS[i][0]].conv, f: F.pct },
+        { h: 'Gelir', get: (m, i) => m.offers[OFFERS[i][0]].revenue, f: F.usd },
+      ], offerKeys, { foot: 'Satın alan: teklifi gören oyuncular içinde. Daily “Tüm günler” Daily sekmesinde.' }));
+    const ids = Object.keys(S.PRODUCTS).sort((a, b) => g.all.products[b].revenue - g.all.products[a].revenue);
+    const products = section('Ürünler', 'Fiyatlar USD karşılığı, demo değer.',
+      table(g, [
+        { h: 'Ürün', raw: (id) => S.PRODUCTS[id].name },
+        { h: 'Grup', raw: (id) => '<span class="tag">' + S.PRODUCTS[id].group + '</span>' },
+        { h: 'Fiyat', raw: (id) => '$' + nf2.format(S.PRODUCTS[id].usd) },
+        { h: 'Satın alma', get: (m, id) => m.products[id].count, f: F.int },
+        { h: 'Alıcı', get: (m, id) => m.products[id].buyers.size, f: F.int },
+        { h: 'Gelir', get: (m, id) => m.products[id].revenue, f: F.usd },
+        { h: 'Gelir payı', get: (m, id) => ratio(m.products[id].revenue, m.revenue), f: F.pct },
+        { h: 'İlk satın alma payı', get: (m, id) => ratio(m.products[id].first, m.products[id].count), f: F.pct },
+      ], ids));
+    const srcKeys = [0, 1, 2, 3, 4, 5];
+    const sources = section('Market açılış kaynakları', 'Market’i nereden açtılar, kaçı satın aldı.',
+      table(g, [
+        { h: 'Kaynak', raw: (i) => MARKET_SOURCES[i][1] },
+        { h: 'Açılış', get: (m, i) => m.sources[MARKET_SOURCES[i][0]].opens, f: F.int },
+        { h: 'Açan oyuncu', get: (m, i) => ratio(m.sources[MARKET_SOURCES[i][0]].users, m.n), f: F.pct },
+        { h: 'Satın alma', get: (m, i) => m.sources[MARKET_SOURCES[i][0]].buys, f: F.int },
+        { h: 'Dönüşüm', get: (m, i) => ratio(m.sources[MARKET_SOURCES[i][0]].buys, m.sources[MARKET_SOURCES[i][0]].opens), f: F.pct },
+      ], srcKeys));
+    return kpis + offers + products + sources;
+  }
+
+  // ---------- 05 Daily ----------
+  function computeDaily(ds) {
+    const eligible = ds.players.filter((p) => p.maxWon >= S.UNLOCK.daily);
+    const plays = ds.dailies;
+    const participants = new Set(plays.map((r) => r.p));
+    const playDays = new Set(plays.map((r) => r.p.id + ':' + r.day)).size;
+    let eligibleDays = 0;
+    for (const p of eligible) eligibleDays += p.active.filter((d) => p.levelAt[d] > S.UNLOCK.daily).length;
+    const boards = [];
+    for (let b = 0; b < S.DAILY_BOARDS; b++) boards.push([]);
+    for (const r of plays) boards[r.board].push(r);
+    const boardStats = boards.map((rs) => ({
+      plays: rs.length,
+      done: ratio(rs.filter((r) => r.completed).length, rs.length),
+      limit: ratio(rs.filter((r) => r.hitLimit).length, rs.length),
+      cont: ratio(rs.filter((r) => r.continued).length, rs.filter((r) => r.hitLimit).length),
+      mins: quantile(rs.map((r) => r.mins), 0.5),
+    }));
+    const part = [...participants];
+    return {
+      eligible: eligible.length,
+      reach: ratio(participants.size, eligible.length),
+      dailyShare: ratio(playDays, eligibleDays),
+      done: ratio(plays.filter((r) => r.completed).length, plays.length),
+      adEntry: ratio(plays.filter((r) => r.entry === 'past_ad' || r.entry === 'retry_ad').length, plays.length),
+      plays: plays.length,
+      boardStats,
+      milestones: S.DAILY_MILESTONES.map((ms, i) => ({
+        reached: ratio(part.filter((p) => p.milestones[i]).length, part.length),
+        claimed: ratio(part.filter((p) => p.milestoneClaimed[i]).length, part.filter((p) => p.milestones[i]).length),
+      })),
+      allDays: ratio(ds.purchases.filter((o) => o.product === 'daily-all-days').length, participants.size),
+    };
+  }
+
+  function renderDaily() {
+    const g = groupsFor(computeDaily);
+    const kpis = '<div class="kpis">'
+      + kpi(g, 'Daily’e katılım', (m) => m.reach, F.pct, (m) => 'Daily açılmış ' + F.int(m.eligible) + ' oyuncu içinde')
+      + kpi(g, 'Günlük katılım', (m) => m.dailyShare, F.pct, 'Daily açıkken aktif günlerin payı')
+      + kpi(g, 'Tamamlama', (m) => m.done, F.pct, (m) => F.int(m.plays) + ' oynanış')
+      + kpi(g, 'Reklamla giriş', (m) => m.adEntry, F.pct, (m) => 'Geçmiş gün veya retry · Tüm günler: ' + F.pct(m.allDays))
+      + '</div>';
+    const keys = [];
+    for (let b = 0; b < S.DAILY_BOARDS; b++) keys.push(b);
+    const chart = section('Board başına tamamlama', '38 board sırayla takvime dağıtılır.',
+      barChart({ categories: keys.map((b) => String(b + 1)), series: series(g, (m) => m.boardStats.map((s) => s.done)), pct: true, max: 1, tipLabel: (i) => 'Board ' + (i + 1) }), legend(g.names));
+    const milestones = section('Milestone hunisi', 'Katılımcılar içinde ulaşan; ödülü alan ise ulaşanlar içinde.',
+      barRows(g, S.DAILY_MILESTONES.map((ms, i) => ({
+        name: ms.at + ' tamamlanan gün',
+        code: ms.coins + ' altın + booster',
+        get: (m) => m.milestones[i].reached,
+        third: (m) => m.milestones[i].claimed,
+      })), { h1: 'Milestone', h2: 'Ulaşan', h3: 'Ödül alan' }));
+    const tbl = section('Board’lar', 'Limit: süre veya hamle. Devam: limite takılıp reklamla +30 sn / +5 hamle alan.',
+      table(g, [
+        { h: 'Board', raw: (b) => 'Board ' + (b + 1) },
+        { h: 'Limit', raw: (b) => '<span class="tag">' + (S.DAILY_LIMIT[b] === 'time' ? 'Süre' : 'Hamle') + '</span>' },
+        { h: 'Oynanış', get: (m, b) => m.boardStats[b].plays, f: F.int },
+        { h: 'Tamamlama', get: (m, b) => m.boardStats[b].done, f: F.pct },
+        { h: 'Limite takılma', get: (m, b) => m.boardStats[b].limit, f: F.pct },
+        { h: 'Devam', get: (m, b) => m.boardStats[b].cont, f: F.pct },
+        { h: 'Süre P50', get: (m, b) => m.boardStats[b].mins, f: F.min },
+      ], keys));
+    return kpis + chart + milestones + tbl;
+  }
+
+  // ---------- 06 Event ----------
+  const EVENT_STEPS = ['Event girişini gördü', 'Event ekranını açtı', 'Katıldı · ilk puan', '1. ödül', '2. ödül', '3. ödül', 'Tamamladı · son ödül'];
+  function computeEvent(ds) {
+    const out = {};
+    for (const ev of S.EVENTS) {
+      const eligible = ds.players.filter((p) => p.ev[ev.id].eligible);
+      const joined = eligible.filter((p) => p.ev[ev.id].steps >= 3);
+      const rest = eligible.filter((p) => p.ev[ev.id].steps < 3);
+      const days = [];
+      for (let d = ev.start; d <= ev.end; d++) days.push(joined.filter((p) => p.ev[ev.id].days.includes(d)).length);
+      const retained = (list) => {
+        const m = list.filter((p) => p.ev[ev.id].retained !== null);
+        return ratio(m.filter((p) => p.ev[ev.id].retained).length, m.length);
+      };
+      out[ev.id] = {
+        eligible: eligible.length,
+        steps: EVENT_STEPS.map((s, i) => ratio(eligible.filter((p) => p.ev[ev.id].steps >= i + 1).length, eligible.length)),
+        join: ratio(joined.length, eligible.length),
+        done: ratio(joined.filter((p) => p.ev[ev.id].steps >= 7).length, joined.length),
+        levels: quantile(joined.map((p) => p.ev[ev.id].levels), 0.5),
+        revenue: sum(joined, (p) => p.ev[ev.id].revenue),
+        payers: joined.filter((p) => p.ev[ev.id].revenue > 0).length,
+        days,
+        retJoined: retained(joined),
+        retRest: retained(rest),
+      };
+    }
+    const reached = ds.players.filter((p) => p.maxWon >= S.UNLOCK.eventButton - 1);
+    const tappers = reached.filter((p) => p.eventTaps > 0);
+    out.button = { reached: reached.length, tap: ratio(tappers.length, reached.length), taps: ratio(sum(tappers, (p) => p.eventTaps), tappers.length) };
+    return out;
+  }
+
+  function renderEvent() {
+    const g = groupsFor(computeEvent);
+    const id = state.eventId;
+    const ev = S.EVENTS.find((e) => e.id === id);
+    const e = (m) => m[id];
+    const notice = '<div class="notice">Oyunda henüz event sistemi yok. Bugün yalnızca L8’de açılan event butonuna ilgi ölçülebilir. Event metrikleri örnek bir kurguyla gösteriliyor; yapı, ileride gelecek her event için aynı kalır.</div>';
+    const picker = select('eventId', id, S.EVENTS.map((x) => [x.id, x.name]));
+    const kpis = '<div class="kpis">'
+      + kpi(g, 'Katılım', (m) => e(m).join, F.pct, (m) => 'Uygun ' + F.int(m[id].eligible) + ' oyuncu içinde')
+      + kpi(g, 'Tamamlama', (m) => e(m).done, F.pct, 'Katılanlar içinde son ödül')
+      + kpi(g, 'Katılımcı başı level', (m) => e(m).levels, F.int, 'P50 · event günlerinde')
+      + kpi(g, 'Event geliri', (m) => e(m).revenue, F.usd, (m) => F.int(m[id].payers) + ' ödeme yapan katılımcı')
+      + '</div>';
+    const funnel = section('Event hunisi', 'Uygun: event döneminde aktif ve L8+ oyuncu. Her adım uygun oyunculara oranlanır.',
+      barRows(g, EVENT_STEPS.map((s, i) => ({ name: s, get: (m) => m[id].steps[i] })), { h1: 'Adım', h2: 'Uygunlardan' }), '<div class="toolbar">' + legend(g.names) + picker + '</div>');
+    const dayLabels = [];
+    for (let d = ev.start; d <= ev.end; d++) dayLabels.push(shortDate(d));
+    const daily = section('Günlük aktif katılımcı', ev.name + ' · ' + shortDate(ev.start) + '–' + shortDate(ev.end),
+      barChart({ categories: dayLabels, series: series(g, (m) => m[id].days), fmt: F.int, height: 200 }), legend(g.names));
+    const effect = section('Event sonrası 7 gün', 'Katılan ve katılmayan uygun oyuncuların event bitiminden sonraki 7 günde aktif olma oranı. Nedensellik değil, karşılaştırma.',
+      barRows(g, [
+        { name: 'Katılanlar', get: (m) => m[id].retJoined },
+        { name: 'Katılmayanlar', get: (m) => m[id].retRest },
+      ], { h1: 'Grup', h2: 'Aktif' }));
+    const button = section('Event butonu ilgisi (bugün ölçülebilen)', 'L8’e ulaşan oyuncular içinde, “yakında” uyarısına rağmen butona dokunan.',
+      barRows(g, [
+        { name: 'Butona dokunan', get: (m) => m.button.tap, third: (m) => m.button.taps, f3: F.dec },
+      ], { h1: 'Metrik', h2: 'Oran', h3: 'Dokunan başı' }));
+    const list = section('Event karşılaştırması', '',
+      table(g, [
+        { h: 'Event', raw: (i) => S.EVENTS[i].name },
+        { h: 'Tarih', raw: (i) => shortDate(S.EVENTS[i].start) + '–' + shortDate(S.EVENTS[i].end) },
+        { h: 'Uygun', get: (m, i) => m[S.EVENTS[i].id].eligible, f: F.int },
+        { h: 'Katılım', get: (m, i) => m[S.EVENTS[i].id].join, f: F.pct },
+        { h: 'Tamamlama', get: (m, i) => m[S.EVENTS[i].id].done, f: F.pct },
+        { h: 'Level P50', get: (m, i) => m[S.EVENTS[i].id].levels, f: F.int },
+        { h: 'Gelir', get: (m, i) => m[S.EVENTS[i].id].revenue, f: F.usd },
+      ], S.EVENTS.map((x, i) => i)));
+    return notice + kpis + funnel + daily + '<div class="grid-2">' + effect + button + '</div>' + list;
+  }
+
+  // ---------- 07 Economy & Free ----------
+  const SOURCES = [
+    ['level', 'Level ödülü'],
+    ['get2x', 'Get2X'],
+    ['board', 'Tahta temizleme'],
+    ['interstitial', 'Interstitial ödülü'],
+    ['treasure', 'Treasure'],
+    ['daily', 'Daily milestone'],
+    ['iap', 'Satın alma'],
+  ];
+  const SINKS = [
+    ['burn', 'Burn'],
+    ['move', 'Move'],
+    ['fan', 'Fan'],
+    ['extra', 'Extra'],
+    ['slot', 'Altınla slot'],
+    ['continue', 'Devam (fail)'],
+    ['refill', 'Can doldurma'],
+    ['daily_move', 'Daily · Move'],
+    ['daily_magnet', 'Daily · Magnet'],
+  ];
+  const BOOSTERS = [['burn', 'Burn'], ['move', 'Move'], ['fan', 'Fan'], ['extra', 'Extra']];
+  const BOOSTER_SRC = [['start', 'Başlangıç / unlock'], ['coin', 'Altınla'], ['ad', 'Reklamla'], ['treasure', 'Treasure'], ['iap', 'Paket'], ['daily', 'Daily']];
+  const ZERO = [['refill', 'Altınla doldurdu'], ['ad', 'Reklamla +1 can'], ['market', 'Market’ten satın aldı'], ['wait', 'Bekledi (oturum bitti)']];
+
+  function computeEconomy(ds) {
+    const src = {};
+    const sink = {};
+    const bst = {};
+    for (const [k] of BOOSTERS) {
+      bst[k] = { used: 0 };
+      for (const [s] of BOOSTER_SRC) bst[k][s] = 0;
+    }
+    const zero = { refill: 0, ad: 0, market: 0, wait: 0, gone: 0 };
+    let zeroEvents = 0;
+    const tr = { days: 0, free: 0, users: 0, chain: [0, 0, 0, 0] };
+    let lifeFail = 0;
+    let lifeRestart = 0;
+    for (const p of ds.players) {
+      for (const k in p.src) src[k] = (src[k] || 0) + p.src[k];
+      for (const k in p.sink) sink[k] = (sink[k] || 0) + p.sink[k];
+      for (const [k] of BOOSTERS) {
+        for (const s in p.bst[k]) bst[k][s] += p.bst[k][s];
+      }
+      lifeFail += p.lifeLoss.fail;
+      lifeRestart += p.lifeLoss.restart;
+      for (const z of p.zero) {
+        zeroEvents++;
+        zero[z.outcome]++;
+        if (z.outcome === 'wait' && !p.active.some((d) => d > z.day)) zero.gone++;
+      }
+      tr.days += p.treasure.days;
+      tr.free += p.treasure.free;
+      if (p.treasure.free > 0) tr.users++;
+      p.treasure.chain.forEach((v, i) => (tr.chain[i] += v));
+    }
+    const levelsBal = {};
+    for (const r of ds.levels) {
+      if (r.level > 40) continue;
+      (levelsBal[r.level] = levelsBal[r.level] || []).push(r.coinsAtEntry);
+    }
+    const lv = [];
+    for (let i = 1; i <= 40; i++) lv.push(i);
+    const totalSrc = sumObj(src);
+    const totalSink = sumObj(sink);
+    const ad = ds.activeDays;
+    const n = ds.players.length;
+    const treasureUsers = ds.players.filter((p) => p.treasure.days > 0).length;
+    return {
+      src,
+      sink,
+      totalSrc,
+      totalSink,
+      earnPerDay: ratio(totalSrc, ad),
+      spendPerDay: ratio(totalSink, ad),
+      short: ratio(ds.players.filter((p) => p.short > 0).length, n),
+      zeroShare: ratio(ds.players.filter((p) => p.zero.length > 0).length, n),
+      ad,
+      bst,
+      zero,
+      zeroEvents,
+      lifeFail,
+      lifeRestart,
+      balP50: lv.map((l) => quantile(levelsBal[l] || [], 0.5)),
+      balP90: lv.map((l) => quantile(levelsBal[l] || [], 0.9)),
+      lv,
+      tr,
+      trUsers: ratio(tr.users, treasureUsers),
+    };
+  }
+
+  function renderEconomy() {
+    const g = groupsFor(computeEconomy);
+    const kpis = '<div class="kpis">'
+      + kpi(g, 'Kazanılan altın', (m) => m.earnPerDay, F.int, 'Aktif gün başına · tüm kaynaklar')
+      + kpi(g, 'Harcanan altın', (m) => m.spendPerDay, F.int, 'Aktif gün başına')
+      + kpi(g, 'Altını yetmeyen oyuncu', (m) => m.short, F.pct, 'En az bir kez satın alamadı')
+      + kpi(g, '0 cana düşen oyuncu', (m) => m.zeroShare, F.pct, (m) => F.int(m.zeroEvents) + ' kez')
+      + '</div>';
+    const balSeries = state.compare
+      ? series(g, (m) => m.balP50).map((s) => Object.assign(s, { name: s.name + ' P50' }))
+      : [{ name: 'P50', values: g.all.balP50, color: 0 }, { name: 'P90', values: g.all.balP90, color: 1 }];
+    const balance = section('Level girişinde altın bakiyesi', state.compare ? 'P50, Paid ve Organik.' : 'P50 ve P90.',
+      lineChart({ categories: g.all.lv.map((l) => 'L' + l), series: balSeries, fmt: F.int }),
+      legend(balSeries.map((s) => s.name)));
+    const flow = (list, key, total) => table(g, [
+      { h: 'Kalem', raw: (i) => list[i][1] },
+      { h: 'Toplam', get: (m, i) => m[key][list[i][0]] || 0, f: F.int },
+      { h: 'Aktif gün başına', get: (m, i) => ratio(m[key][list[i][0]] || 0, m.ad), f: F.dec },
+      { h: 'Pay', get: (m, i) => ratio(m[key][list[i][0]] || 0, m[total]), f: F.pct },
+    ], list.map((x, i) => i));
+    const flows = '<div class="grid-2">'
+      + section('Altın kaynakları', '', flow(SOURCES, 'src', 'totalSrc'))
+      + section('Altın harcamaları', '', flow(SINKS, 'sink', 'totalSink'))
+      + '</div>';
+    const cols = [{ h: 'Booster', raw: (i) => BOOSTERS[i][1] }];
+    for (const [s, name] of BOOSTER_SRC) cols.push({ h: name, get: (m, i) => m.bst[BOOSTERS[i][0]][s], f: F.int });
+    cols.push({ h: 'Kullanılan', get: (m, i) => m.bst[BOOSTERS[i][0]].used, f: F.int });
+    const boosters = section('Booster kazanımı ve kullanımı', 'Extra’da “Başlangıç” iki ücretsiz kullanımdır.', table(g, cols, [0, 1, 2, 3]));
+    const lives = section('Canlar', 'Can kaybı nedeni ve 0 cana düşünce ne oldu.',
+      barRows(g, [
+        { name: 'Kayıp · fail ekranını kapatma', get: (m) => ratio(m.lifeFail, m.lifeFail + m.lifeRestart), third: (m) => m.lifeFail, f3: F.int },
+        { name: 'Kayıp · Settings restart', get: (m) => ratio(m.lifeRestart, m.lifeFail + m.lifeRestart), third: (m) => m.lifeRestart, f3: F.int },
+      ].concat(ZERO.map(([k, name]) => ({ name: '0 can → ' + name, get: (m) => ratio(m.zero[k], m.zeroEvents), third: (m) => m.zero[k], f3: F.int })))
+        .concat([{ name: '0 can → bir daha dönmedi', get: (m) => ratio(m.zero.gone, m.zeroEvents), third: (m) => m.zero.gone, f3: F.int }]),
+      { h1: 'Durum', h2: 'Pay', h3: 'Adet' }));
+    const treasure = section('Free · Treasure', 'Saatlik 10 altın ve günlük reklam zinciri.',
+      barRows(g, [
+        { name: 'Ücretsiz 10 altın alan oyuncu', get: (m) => m.trUsers, third: (m) => ratio(m.tr.free, m.tr.days), f3: F.dec },
+        { name: 'Zincir 1 · 90 altın', get: (m) => ratio(m.tr.chain[0], m.tr.days) },
+        { name: 'Zincir 2 · Burn', get: (m) => ratio(m.tr.chain[1], m.tr.days) },
+        { name: 'Zincir 3 · 20 dk sınırsız can', get: (m) => ratio(m.tr.chain[2], m.tr.days) },
+        { name: 'Zincir 4 · Fan', get: (m) => ratio(m.tr.chain[3], m.tr.days) },
+      ], { h1: 'Adım', h2: 'Oran', h3: 'Gün başına' }));
+    return kpis + balance + flows + boosters + '<div class="grid-2">' + lives + treasure + '</div>';
+  }
+
+  // ---------- shell ----------
+  const RENDER = {
+    onboarding: [renderOnboarding, 'Kurulumdan ilk 10 level’a kadar oyuncuların hangi event’i tamamlayıp nerede koptuğu.'],
+    overview: [renderOverview, 'Kurulum, aktif kullanıcı, retention ve gelir.'],
+    level: [renderLevel, 'Level bazında zorluk, yardım kullanımı, ödeme ve kayıp.'],
+    ads: [renderAds, 'Rewarded yerleşimleri, interstitial ve banner.'],
+    market: [renderMarket, 'IAP geliri, teklifler, ürünler ve Market’e giriş noktaları.'],
+    daily: [renderDaily, 'Daily Challenge katılımı, board zorluğu ve milestone’lar.'],
+    event: [renderEvent, 'Event katılımı, ilerleme, gelir ve retention etkisi.'],
+    economy: [renderEconomy, 'Altın, booster, can ve Treasure akışı.'],
+  };
+
+  function filterBar() {
+    const f = state.f;
+    const opt = (key, options) => '<select data-filter="' + key + '">' + options.map((o) => '<option value="' + o[0] + '"' + (String(f[key]) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>';
+    let html = '<div class="card filters"><div class="filter-row">'
+      + '<div class="field"><label>Kurulum kohortu</label><div class="range"><input type="date" data-filter="from" value="' + f.from + '" min="2026-09-01" max="2026-09-30"> – <input type="date" data-filter="to" value="' + f.to + '" min="2026-09-01" max="2026-09-30"></div></div>'
+      + '<div class="field"><label>Edinim</label>' + opt('acq', [['all', 'Paid + Organik'], ['paid', 'Paid'], ['organic', 'Organik']]) + '</div>'
+      + '<div class="field"><label>Platform</label>' + opt('platform', [['all', 'iOS + Android'], ['ios', 'iOS'], ['android', 'Android']]) + '</div>'
+      + '<div class="field"><label>Ülke</label>' + opt('country', [['all', 'Tüm ülkeler'], ['TR', 'Türkiye'], ['US', 'ABD'], ['DE', 'Almanya'], ['BR', 'Brezilya'], ['OTHER', 'Diğer']]) + '</div>'
+      + versionFields(opt);
+    if (state.tab === 'level') {
+      html += '<div class="field"><label>Level’a giriş günü</label>' + opt('entryDay', [['all', 'Tüm günler'], ['d0', 'D0'], ['d1', 'D1–3'], ['d4', 'D4–7'], ['d8', 'D8+']]) + '</div>'
+        + '<div class="field"><label>Level’a girişte</label>' + opt('payer', [['all', 'Payer + Non-payer'], ['payer', 'Payer'], ['nonpayer', 'Non-payer']]) + '</div>'
+        + '<div class="field"><label>Level aralığı</label><div class="range"><input type="number" min="1" max="60" data-filter="lvFrom" value="' + f.lvFrom + '"> – <input type="number" min="1" max="60" data-filter="lvTo" value="' + f.lvTo + '"></div></div>';
+    }
+    const inFilter = S.players.filter((p) => playerPass(p, f));
+    const count = state.compare === 'version'
+      ? [state.verA, state.verB].map((v) => v + ': ' + F.int(inFilter.filter((p) => p.version === v).length)).join(' · ') + ' oyuncu'
+      : F.int(inFilter.length) + ' oyuncu';
+    const modes = [['none', 'Yok'], ['acq', 'Paid vs Organik']];
+    if (state.tab === 'onboarding') modes.push(['version', 'Sürüm A vs B']);
+    const current = state.compare || 'none';
+    html += '</div><div class="filter-foot"><div class="sample">' + count + ' · gözlem sonu ' + shortDate(S.OBS_END) + '.2026 · sentetik veri</div>'
+      + '<div class="toolbar"><span class="sample">Kırılım</span><div class="seg">' + modes.map((m) => '<button data-action="compare" data-key="' + m[0] + '" class="' + (m[0] === current ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div>'
+      + '<button class="btn" data-action="reset">Sıfırla</button></div></div></div>';
+    return html;
+  }
+
+  const VERSIONS = ['1.0.0', '1.0.1', '1.1.0'];
+  // In the version split the single version filter becomes two pickers, A and B.
+  function versionFields(opt) {
+    if (state.compare !== 'version') {
+      return '<div class="field"><label>Sürüm</label>' + opt('version', [['all', 'Tüm sürümler']].concat(VERSIONS.map((v) => [v, v]))) + '</div>';
+    }
+    const pick = (key) => '<select data-state="' + key + '">' + VERSIONS.map((v) => '<option value="' + v + '"' + (state[key] === v ? ' selected' : '') + '>' + v + '</option>').join('') + '</select>';
+    return '<div class="field"><label><i class="dot paid"></i>Sürüm A</label>' + pick('verA') + '</div>'
+      + '<div class="field"><label><i class="dot organic"></i>Sürüm B</label>' + pick('verB') + '</div>';
+  }
+
+  function renderNav() {
+    document.getElementById('nav-list').innerHTML = TABS.map((t, i) => '<button class="nav-item' + (t.id === state.tab ? ' active' : '') + '" data-action="tab" data-key="' + t.id + '"><span>' + t.name + '</span><small>' + String(i).padStart(2, '0') + '</small></button>').join('');
+  }
+
+  function render() {
+    if (state.compare === 'version' && state.tab !== 'onboarding') state.compare = false; // version split exists only on Onboarding
+    renderNav();
+    const tab = TABS.find((t) => t.id === state.tab);
+    const [fn, desc] = RENDER[state.tab];
+    view.innerHTML = '<div class="page-head"><div><h1>' + tab.name + '</h1><p>' + desc + '</p></div></div>' + filterBar() + fn();
+    if (state.drawerLevel !== null) openDrawer(state.drawerLevel);
+  }
+
+  function openDrawer(lv) {
+    state.drawerLevel = lv;
+    document.getElementById('drawer').innerHTML = renderLevelDrawer(lv);
+    document.getElementById('drawer').classList.add('open');
+    document.getElementById('scrim').classList.add('open');
+  }
+  function closeDrawer() {
+    state.drawerLevel = null;
+    document.getElementById('drawer').classList.remove('open');
+    document.getElementById('scrim').classList.remove('open');
+  }
+
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-action]');
+    if (!el) return;
+    const action = el.dataset.action;
+    const key = el.dataset.key;
+    if (el.tagName === 'SELECT') return;
+    if (action === 'tab') {
+      state.tab = key;
+      try {
+        history.replaceState(null, '', '#' + key); // a sandboxed viewer frame may refuse history writes
+      } catch (err) {}
+      closeDrawer();
+      render();
+      window.scrollTo(0, 0);
+    } else if (action === 'compare') {
+      state.compare = key === 'none' ? false : key;
+      render();
+    } else if (action === 'reset') {
+      state.f = Object.assign({}, DEFAULT_FILTERS);
+      state.compare = false;
+      render();
+    } else if (action === 'trend') {
+      state.trend = key;
+      render();
+    } else if (action === 'level') {
+      openDrawer(+key);
+    } else if (action === 'close') {
+      closeDrawer();
+    }
+  });
+  document.getElementById('scrim').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeDrawer();
+  });
+  document.addEventListener('change', (e) => {
+    const el = e.target;
+    if (el.dataset.state) {
+      const other = el.dataset.state === 'verA' ? 'verB' : 'verA';
+      if (state[other] === el.value) state[other] = state[el.dataset.state]; // picking the other side's version swaps A and B
+      state[el.dataset.state] = el.value;
+      render();
+    } else if (el.dataset.filter) {
+      const key = el.dataset.filter;
+      let v = el.value;
+      if (key === 'lvFrom' || key === 'lvTo') v = Math.max(1, Math.min(S.MAX_LEVEL, parseInt(v, 10) || 1));
+      state.f[key] = v;
+      if (state.f.lvFrom > state.f.lvTo) state.f.lvTo = state.f.lvFrom; // keep the range non-empty
+      if (state.f.from > state.f.to) state.f.to = state.f.from;
+      render();
+    } else if (el.dataset.action) {
+      state[el.dataset.action] = el.value;
+      render();
+    }
+  });
+  document.addEventListener('mousemove', (e) => {
+    const el = e.target.closest && e.target.closest('[data-tip]');
+    if (!el) {
+      tip.style.display = 'none';
+      return;
+    }
+    tip.innerHTML = el.dataset.tip;
+    tip.style.display = 'block';
+    const x = Math.min(window.innerWidth - tip.offsetWidth - 8, e.clientX + 14);
+    tip.style.left = x + 'px';
+    tip.style.top = e.clientY + 14 + 'px';
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
