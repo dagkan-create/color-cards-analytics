@@ -1251,6 +1251,26 @@ td .low { color: var(--muted); font-size: 11px; }
     rec.churn7 = next === undefined || next > rec.lastDay + 7;
   }
 
+  // Permission prompts (ATT, notifications, KVKK/GDPR data consent) live in the Unity project, not in this
+  // HTML branch yet. Outcomes are drawn after play so they never shift the simulated game; grants lean
+  // toward engaged players, and `current` models later changes in the OS settings.
+  const CONSENT_SHARE = { TR: 1, DE: 1, OTHER: 0.4, US: 0, BR: 0 };
+  for (const p of players) {
+    const e = clamp(p.engage / 1.5, 0, 1);
+    const paidFactor = p.acq === 'paid' ? 0.85 : 1;
+    const draw = (eligible, promptLevel, grantP, laterFlip) => {
+      if (!eligible) return { eligible: false, prompted: false };
+      if (p.maxWon + 1 < promptLevel) return { eligible: true, prompted: false }; // never reached the prompt
+      const granted = R() < grantP;
+      return { eligible: true, prompted: true, granted, level: promptLevel, current: R() < laterFlip ? !granted : granted };
+    };
+    p.perm = {
+      att: draw(p.platform === 'ios', 1, clamp((0.22 + 0.15 * e) * paidFactor, 0, 1), 0.02),
+      notif: draw(true, int(2, 5), clamp((p.platform === 'ios' ? 0.38 : 0.6) + 0.15 * e, 0, 1), 0.05),
+      consent: draw(R() < CONSENT_SHARE[p.country], 1, clamp(0.72 + 0.12 * e, 0, 1), 0.01),
+    };
+  }
+
   root.SIM = {
     DAY0,
     INSTALL_DAYS,
@@ -1295,6 +1315,7 @@ td .low { color: var(--muted); font-size: 11px; }
     { id: 'daily', name: 'Daily' },
     { id: 'event', name: 'Event' },
     { id: 'economy', name: 'Ekonomi & Free' },
+    { id: 'permissions', name: 'İzinler' },
   ];
 
   const DEFAULT_FILTERS = {
@@ -1321,6 +1342,7 @@ td .low { color: var(--muted); font-size: 11px; }
     trend: 'dau',
     levelMetric: 'reach',
     dailyMetric: 'reach',
+    permMetric: 'att',
     drawerLevel: null,
   };
 
@@ -2479,6 +2501,80 @@ td .low { color: var(--muted); font-size: 11px; }
     return kpis + balance + flows + boosters + '<div class="grid-2">' + lives + treasure + '</div>';
   }
 
+  // ---------- 08 Permissions ----------
+  const PERMS = [
+    ['att', 'ATT · reklam takibi', 'iOS'],
+    ['notif', 'Bildirim', 'iOS + Android'],
+    ['consent', 'Veri izni · KVKK/GDPR', 'İzin gereken ülkeler'],
+  ];
+  function computePermissions(ds) {
+    const from = dayIndexOf(state.f.from);
+    const to = dayIndexOf(state.f.to);
+    const days = [];
+    for (let d = from; d <= to; d++) days.push(d);
+    const retained = (list, n) => {
+      const seen = list.filter((p) => p.installDay + n <= S.OBS_END);
+      return ratio(seen.filter((p) => p.active.includes(n)).length, seen.length);
+    };
+    const arpdau = (list) => ratio(sum(list, (p) => sumObj(p.revIap) + sumObj(p.revAd)), sum(list, (p) => p.active.length));
+    const out = { days };
+    for (const [key] of PERMS) {
+      const eligible = ds.players.filter((p) => p.perm[key].eligible);
+      const asked = eligible.filter((p) => p.perm[key].prompted);
+      const yes = asked.filter((p) => p.perm[key].granted);
+      const no = asked.filter((p) => !p.perm[key].granted);
+      out[key] = {
+        eligible: eligible.length,
+        asked: ratio(asked.length, eligible.length),
+        askedN: asked.length,
+        granted: ratio(yes.length, asked.length),
+        denied: ratio(no.length, asked.length),
+        current: ratio(asked.filter((p) => p.perm[key].current).length, asked.length),
+        level: quantile(asked.map((p) => p.perm[key].level), 0.5),
+        d1Yes: retained(yes, 1),
+        d1No: retained(no, 1),
+        d7Yes: retained(yes, 7),
+        d7No: retained(no, 7),
+        arpYes: arpdau(yes),
+        arpNo: arpdau(no),
+        byDay: days.map((d) => {
+          const a = asked.filter((p) => p.installDay === d);
+          return ratio(a.filter((p) => p.perm[key].granted).length, a.length);
+        }),
+      };
+    }
+    return out;
+  }
+
+  function renderPermissions() {
+    const g = groupsFor(computePermissions);
+    const notice = '<div class="notice">İzin akışları Unity projesinde; bu branch’te henüz yok. Veriler sentetik. İznin sorulduğu an ve ön ekran gibi ayrıntılar Unity’deki gerçek akışa göre güncellenecek.</div>';
+    const kpis = '<div class="kpis">'
+      + kpi(g, 'ATT izni', (m) => m.att.granted, F.pct, (m) => 'iOS · sorulan ' + F.int(m.att.askedN) + ' oyuncu içinde')
+      + kpi(g, 'Bildirim izni', (m) => m.notif.granted, F.pct, (m) => 'Sorulan ' + F.int(m.notif.askedN) + ' oyuncu içinde')
+      + kpi(g, 'Veri izni · KVKK/GDPR', (m) => m.consent.granted, F.pct, (m) => 'Sorulan ' + F.int(m.consent.askedN) + ' oyuncu içinde')
+      + kpi(g, 'Bildirimi şu an açık', (m) => m.notif.current, F.pct, 'Sonradan ayarlardan değişenler dahil')
+      + '</div>';
+    const metric = PERMS.find((x) => x[0] === state.permMetric) || PERMS[0];
+    const chips = '<div class="chips">' + PERMS.map((x) => '<button class="chip' + (x[0] === metric[0] ? ' on' : '') + '" data-action="permMetric" data-key="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>';
+    const chart = section('Kurulum gününe göre izin oranı', 'Her kurulum gününde, izin sorulan oyuncular içinde izin veren payı. Sürüm değişikliklerinin etkisi burada görünür.',
+      chips + barChart({ categories: g.all.days.map(shortDate), series: series(g, (m) => m[metric[0]].byDay), pct: true, max: 1, tipLabel: (i) => shortDate(g.all.days[i]) + '.2026 kurulumları' }),
+      legend(g.names));
+    const keys = [0, 1, 2];
+    const at = (i) => PERMS[i][0];
+    const effect = section('İzin verenler ve vermeyenler', 'Karşılaştırmadır, nedensellik değildir: daha bağlı oyuncular izin vermeye de daha yatkındır.',
+      table(g, [
+        { h: 'İzin', raw: (i) => PERMS[i][1] },
+        { h: 'D1 · veren', get: (m, i) => m[at(i)].d1Yes, f: F.pct },
+        { h: 'D1 · vermeyen', get: (m, i) => m[at(i)].d1No, f: F.pct },
+        { h: 'D7 · veren', get: (m, i) => m[at(i)].d7Yes, f: F.pct },
+        { h: 'D7 · vermeyen', get: (m, i) => m[at(i)].d7No, f: F.pct },
+        { h: 'ARPDAU · veren', get: (m, i) => m[at(i)].arpYes, f: F.usd3 },
+        { h: 'ARPDAU · vermeyen', get: (m, i) => m[at(i)].arpNo, f: F.usd3 },
+      ], keys));
+    return notice + kpis + chart + effect;
+  }
+
   // ---------- shell ----------
   const RENDER = {
     onboarding: [renderOnboarding, 'Kurulumdan ilk 10 level’a kadar oyuncuların hangi event’i tamamlayıp nerede koptuğu.'],
@@ -2489,6 +2585,7 @@ td .low { color: var(--muted); font-size: 11px; }
     daily: [renderDaily, 'Daily Challenge katılımı, board zorluğu ve milestone’lar.'],
     event: [renderEvent, ''],
     economy: [renderEconomy, 'Altın, booster, can ve Treasure akışı.'],
+    permissions: [renderPermissions, 'ATT, bildirim ve veri izni (KVKK/GDPR): kimden istendi, kim verdi.'],
   };
 
   function filterBar() {
@@ -2577,6 +2674,9 @@ td .low { color: var(--muted); font-size: 11px; }
     } else if (action === 'reset') {
       state.f = Object.assign({}, DEFAULT_FILTERS);
       state.compare = false;
+      render();
+    } else if (action === 'permMetric') {
+      state.permMetric = key;
       render();
     } else if (action === 'dailyMetric') {
       state.dailyMetric = key;
