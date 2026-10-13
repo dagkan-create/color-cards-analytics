@@ -451,12 +451,20 @@ td .low { color: var(--muted); font-size: 11px; }
     'gold-7500': { name: '7.500 altın', group: 'Altın', usd: 29.99, coins: 7500 },
     'gold-15000': { name: '15.000 altın', group: 'Altın', usd: 49.99, coins: 15000 },
     'gold-30000': { name: '30.000 altın', group: 'Altın', usd: 99.99, coins: 30000 },
-    elite: { name: 'Elite', group: 'Market paketi', usd: 12.99, coins: 900, boost: 1, noads: true },
-    mega: { name: 'Mega', group: 'Market paketi', usd: 24.99, coins: 3300, boost: 2, noads: true },
-    luxury: { name: 'Luxury', group: 'Market paketi', usd: 49.99, coins: 10000, boost: 4, inf: 360, extra: 4, noads: true },
-    royal: { name: 'Royal', group: 'Market paketi', usd: 99.99, coins: 20000, boost: 10, inf: 720, extra: 10, noads: true },
-    ultimate: { name: 'Ultimate', group: 'Market paketi', usd: 119.99, coins: 25000, boost: 13, inf: 1080, extra: 13, noads: true },
+    // Market bundles ship in two variants (catalog.json): the No Ads one (closedByNoAds, once) for players
+    // without No Ads, and the -standard one (requiresNoAds) for No Ads owners. Same price and contents.
+    elite: { name: 'Elite · No Ads’li', group: 'Market paketi', usd: 12.99, coins: 900, boost: 1, noads: true },
+    mega: { name: 'Mega · No Ads’li', group: 'Market paketi', usd: 24.99, coins: 3300, boost: 2, noads: true },
+    luxury: { name: 'Luxury · No Ads’li', group: 'Market paketi', usd: 49.99, coins: 10000, boost: 4, inf: 360, extra: 4, noads: true },
+    royal: { name: 'Royal · No Ads’li', group: 'Market paketi', usd: 99.99, coins: 20000, boost: 10, inf: 720, extra: 10, noads: true },
+    ultimate: { name: 'Ultimate · No Ads’li', group: 'Market paketi', usd: 119.99, coins: 25000, boost: 13, inf: 1080, extra: 13, noads: true },
+    'elite-standard': { name: 'Elite · No Ads’siz', group: 'Market paketi', usd: 12.99, coins: 900, boost: 1, variantOf: 'elite' },
+    'mega-standard': { name: 'Mega · No Ads’siz', group: 'Market paketi', usd: 24.99, coins: 3300, boost: 2, variantOf: 'mega' },
+    'luxury-standard': { name: 'Luxury · No Ads’siz', group: 'Market paketi', usd: 49.99, coins: 10000, boost: 4, inf: 360, extra: 4, variantOf: 'luxury' },
+    'royal-standard': { name: 'Royal · No Ads’siz', group: 'Market paketi', usd: 99.99, coins: 20000, boost: 10, inf: 720, extra: 10, variantOf: 'royal' },
+    'ultimate-standard': { name: 'Ultimate · No Ads’siz', group: 'Market paketi', usd: 119.99, coins: 25000, boost: 13, inf: 1080, extra: 13, variantOf: 'ultimate' },
   };
+  const MARKET_BUNDLES = ['elite', 'mega', 'luxury', 'royal', 'ultimate'];
   const MARKET_MIX = {
     'gold-300': 30,
     'gold-1500': 24,
@@ -497,24 +505,23 @@ td .low { color: var(--muted); font-size: 11px; }
   const COUNTRY_AD = { TR: 0.45, US: 2.6, DE: 1.9, BR: 0.5, OTHER: 0.9 };
   const COUNTRY_PAY = { TR: 0.6, US: 1.8, DE: 1.4, BR: 0.5, OTHER: 0.9 };
 
+  // Daily board assignment mirrors src/daily/model.js boardIndex(): a player's n-th distinct Daily date gets
+  // board n for the first 38 dates, then boards 6-38 repeat in order (config.json repeatFromBoardIndex: 5).
+  // The calendar date does not pick the board, and a retried date keeps its board.
   const DAILY_BOARDS = 38;
-  const DAILY_DIFF = [];
-  const DAILY_LIMIT = [];
-  for (let i = 0; i < DAILY_BOARDS; i++) {
-    DAILY_DIFF.push(0.18 + R() * 0.32);
-    DAILY_LIMIT.push(R() < 0.5 ? 'time' : 'moves');
+  const DAILY_REPEAT_FROM = 5;
+  function dailyBoardIndex(n) {
+    return n < DAILY_BOARDS ? n : DAILY_REPEAT_FROM + ((n - DAILY_BOARDS) % (DAILY_BOARDS - DAILY_REPEAT_FROM));
   }
+  const DAILY_DIFF = [];
+  for (let i = 0; i < DAILY_BOARDS; i++) DAILY_DIFF.push(0.18 + R() * 0.32);
+  // Fail type per board from src/daily/boards.json (FailType 10 = time, otherwise moves).
+  const DAILY_LIMIT = 'tttttmttmttmttmtmmtmmttmtmmmmmmmmmmmmm'.split('').map((c) => (c === 't' ? 'time' : 'moves'));
   const DAILY_MILESTONES = [
     { at: 5, coins: 80 },
     { at: 12, coins: 120 },
     { at: 20, coins: 400 },
     { at: 30, coins: 600 },
-  ];
-
-  // Illustrative live-ops events: the game has no event system yet (event-entry.js is a placeholder).
-  const EVENTS = [
-    { id: 'A', name: 'Örnek event A · Kart Avı', start: 10, end: 16 },
-    { id: 'B', name: 'Örnek event B · Kraliyet Yarışı', start: 24, end: 30 },
   ];
 
   const ONBOARDING_TUTORIAL = [
@@ -605,6 +612,7 @@ td .low { color: var(--muted); font-size: 11px; }
       inter: {},
       banner: 0,
       market: {},
+      marketSeen: [0, 0], // market opens without / with No Ads owned
       offers: {},
       short: 0,
       lifeLoss: { fail: 0, restart: 0 },
@@ -612,9 +620,11 @@ td .low { color: var(--muted); font-size: 11px; }
       infMin: 0,
       treasure: { days: 0, free: 0, chain: [0, 0, 0, 0] },
       dailyDone: 0,
+      dailyAssign: {}, // date -> assignment order, like DailyRules state.assignments
+      dailyCount: 0,
+      dailyDoneDates: {},
       milestones: [0, 0, 0, 0],
       milestoneClaimed: [0, 0, 0, 0],
-      ev: {},
       eventTaps: 0,
       // session-only simulation clocks
       t: 0,
@@ -671,6 +681,7 @@ td .low { color: var(--muted); font-size: 11px; }
       day: p.day,
       level: p.level,
       first: p.purchases.length === 0,
+      noadsBefore: p.noads,
     };
     if (rec) {
       if (order.first) rec.firstPay = true;
@@ -698,9 +709,11 @@ td .low { color: var(--muted); font-size: 11px; }
   function openMarket(p, source) {
     const m = p.market[source] || (p.market[source] = [0, 0]); // opens, purchases
     m[0]++;
+    p.marketSeen[p.noads ? 1 : 0]++; // which bundle variants this open showed
     if (R() < clamp(0.045 * p.spend, 0, 0.5)) {
       let product = pickW(MARKET_MIX);
       if (product === 'noads' && p.noads) product = 'gold-1500';
+      if (MARKET_BUNDLES.includes(product) && p.noads) product += '-standard'; // No Ads owners only see the variant without No Ads
       buy(p, product, 'market:' + source);
       m[1]++;
       return true;
@@ -1043,7 +1056,7 @@ td .low { color: var(--muted); font-size: 11px; }
     if (p.level === UNLOCK.burn) grant(p, 'burn', 2, 'start');
     if (p.level === UNLOCK.move) grant(p, 'move', 2, 'start');
     if (p.level === UNLOCK.fan) grant(p, 'fan', 2, 'start');
-    if (p.level === UNLOCK.eventButton && R() < 0.36) p.eventTaps += int(1, 4);
+    if (p.level === UNLOCK.eventButton && R() < 0.36) p.eventTaps += int(1, 4); // taps on the placeholder Event button; kept for the future Event tab
     if (p.level === 6 && !p.starterFrom) p.starterFrom = p.day;
     if (R() < 0.07) {
       p.quit = true; // natural stop between levels
@@ -1083,13 +1096,21 @@ td .low { color: var(--muted); font-size: 11px; }
     grant(p, 'fan', 1, 'treasure');
   }
 
-  function playDaily(p, entry) {
-    const abs = p.installDay + p.day;
-    const board = (abs - (entry === 'today' ? 0 : int(1, 6)) + DAILY_BOARDS * 4) % DAILY_BOARDS;
+  function playDaily(p, entry, date) {
+    if (p.dailyDoneDates[date]) return false; // a completed date cannot be started again
+    let order = p.dailyAssign[date];
+    if (order === undefined) {
+      order = p.dailyCount++;
+      p.dailyAssign[date] = order;
+    }
+    const board = dailyBoardIndex(order);
     const rec = {
       p,
       day: p.day,
+      date,
+      order: order + 1, // the player's n-th distinct Daily date
       board,
+      repeat: order >= DAILY_BOARDS,
       entry,
       completed: false,
       hitLimit: false,
@@ -1138,6 +1159,7 @@ td .low { color: var(--muted); font-size: 11px; }
       }
     }
     if (!rec.completed) return false;
+    p.dailyDoneDates[date] = true;
     p.dailyDone++;
     DAILY_MILESTONES.forEach((m, i) => {
       if (p.dailyDone === m.at) {
@@ -1156,14 +1178,16 @@ td .low { color: var(--muted); font-size: 11px; }
 
   function dailyChallenge(p) {
     if (p.maxWon < UNLOCK.daily) return;
-    if (R() < 0.38 * p.engage) {
-      const done = playDaily(p, 'today');
-      if (!done && R() < 0.4 && rewarded(p, 'daily_entry', 0.35)) playDaily(p, 'retry_ad');
+    const today = p.installDay + p.day;
+    if (R() < 0.38 * p.engage && !p.dailyDoneDates[today]) {
+      const done = playDaily(p, 'today', today);
+      if (!done && R() < 0.4 && rewarded(p, 'daily_entry', 0.35)) playDaily(p, 'retry_ad', today);
     }
-    if (R() < 0.1 * p.engage) {
+    const past = today - int(1, 6);
+    if (R() < 0.1 * p.engage && past >= 0 && !p.dailyDoneDates[past]) {
       if (!p.allDays && R() < clamp(0.003 * p.spend, 0, 0.05)) buy(p, 'daily-all-days', 'offer:daily');
-      if (p.allDays) playDaily(p, 'alldays');
-      else if (rewarded(p, 'daily_entry', 0.6)) playDaily(p, 'past_ad');
+      if (p.allDays) playDaily(p, 'alldays', past);
+      else if (rewarded(p, 'daily_entry', 0.6)) playDaily(p, 'past_ad', past);
     }
   }
 
@@ -1227,35 +1251,6 @@ td .low { color: var(--muted); font-size: 11px; }
     rec.churn7 = next === undefined || next > rec.lastDay + 7;
   }
 
-  for (const p of players) {
-    for (const ev of EVENTS) {
-      const days = p.active.filter((d) => {
-        const abs = p.installDay + d;
-        return abs >= ev.start && abs <= ev.end && p.levelAt[d] >= UNLOCK.eventButton;
-      });
-      const e = { eligible: days.length > 0, steps: 0, levels: 0, days: [], retained: null, revenue: 0 };
-      p.ev[ev.id] = e;
-      if (!e.eligible) continue;
-      // steps: 1 saw entry, 2 opened, 3 joined, 4-6 rewards, 7 completed
-      const odds = [0.93, clamp(0.2 + 0.28 * p.engage, 0, 0.9), clamp(0.6 + 0.15 * p.engage, 0, 0.95), 0.8, 0.7, 0.65, 0.7];
-      for (const o of odds) {
-        if (R() >= o * (days.length > 2 ? 1 : 0.85)) break;
-        e.steps++;
-      }
-      if (e.steps >= 3) {
-        e.days = days.map((d) => p.installDay + d);
-        e.levels = days.reduce((sum, d) => sum + (p.attemptsByDay[d] || 0), 0);
-        if (R() < clamp(0.012 * p.spend, 0, 0.3)) e.revenue = 4.99;
-      }
-      if (ev.end + 7 <= OBS_END) {
-        e.retained = p.active.some((d) => {
-          const abs = p.installDay + d;
-          return abs > ev.end && abs <= ev.end + 7;
-        });
-      }
-    }
-  }
-
   root.SIM = {
     DAY0,
     INSTALL_DAYS,
@@ -1264,11 +1259,13 @@ td .low { color: var(--muted); font-size: 11px; }
     UNLOCK,
     NEW_AT,
     PRODUCTS,
+    MARKET_BUNDLES,
     PLACEMENTS,
     DAILY_BOARDS,
+    DAILY_REPEAT_FROM,
+    dailyBoardIndex,
     DAILY_LIMIT,
     DAILY_MILESTONES,
-    EVENTS,
     ONBOARDING_TUTORIAL,
     ONBOARDING_LEVELS,
     ONBOARDING_WINDOW: 7,
@@ -1306,11 +1303,13 @@ td .low { color: var(--muted); font-size: 11px; }
     platform: 'all',
     acq: 'all',
     country: 'all',
+    payerType: 'all', // player-level: at least one purchase in the observation window
     version: 'all',
     entryDay: 'all',
     payer: 'all',
     lvFrom: 1,
     lvTo: 30,
+    pct: '50', // Level tab percentile for time and attempts: 50 | 75 | 90 | 99
   };
   // session-only: UI state lives in memory and the URL hash.
   const state = {
@@ -1321,7 +1320,7 @@ td .low { color: var(--muted); font-size: 11px; }
     f: Object.assign({}, DEFAULT_FILTERS),
     trend: 'dau',
     levelMetric: 'reach',
-    eventId: 'B',
+    dailyMetric: 'reach',
     drawerLevel: null,
   };
 
@@ -1355,6 +1354,12 @@ td .low { color: var(--muted); font-size: 11px; }
     const hi = Math.ceil(pos);
     return v[lo] + (v[hi] - v[lo]) * (pos - lo);
   }
+  // Nearest-rank percentile for whole counts such as attempts: always returns a value that occurred.
+  function quantileRank(values, q) {
+    if (!values.length) return null;
+    const v = values.slice().sort((a, b) => a - b);
+    return v[Math.max(0, Math.ceil(q * v.length) - 1)];
+  }
   const sumObj = (o) => Object.values(o).reduce((s, x) => s + x, 0);
   const dayIndexOf = (iso) => Math.round((Date.parse(iso + 'T00:00:00Z') - S.DAY0) / 864e5);
 
@@ -1364,7 +1369,9 @@ td .low { color: var(--muted); font-size: 11px; }
     const to = dayIndexOf(f.to);
     if (p.installDay < from || p.installDay > to) return false;
     if (f.platform !== 'all' && p.platform !== f.platform) return false;
-    if (f.acq !== 'all' && p.acq !== f.acq) return false;
+    // A dimension used as the active split ignores its own filter, so both groups stay populated.
+    if (f.acq !== 'all' && state.compare !== 'acq' && p.acq !== f.acq) return false;
+    if (f.payerType !== 'all' && state.compare !== 'payer' && (p.purchases.length > 0) !== (f.payerType === 'payer')) return false;
     if (f.country !== 'all' && p.country !== f.country) return false;
     if (f.version !== 'all' && state.compare !== 'version' && p.version !== f.version) return false; // the version split replaces the version filter
     return true;
@@ -1395,6 +1402,9 @@ td .low { color: var(--muted); font-size: 11px; }
   function compareGroups() {
     if (state.compare === 'acq') {
       return [['Paid', (p) => p.acq === 'paid'], ['Organik', (p) => p.acq === 'organic']];
+    }
+    if (state.compare === 'payer') {
+      return [['Payer', (p) => p.purchases.length > 0], ['Non-payer', (p) => p.purchases.length === 0]];
     }
     if (state.compare === 'version') {
       return [['Sürüm ' + state.verA, (p) => p.version === state.verA], ['Sürüm ' + state.verB, (p) => p.version === state.verB]];
@@ -1819,8 +1829,11 @@ td .low { color: var(--muted); font-size: 11px; }
     ['retry', 'Retry yapan oyuncu', true],
     ['churn7', '7 gün geri dönmeme', true],
     ['assist', 'Yardım kullanan oyuncu', true],
-    ['minsP50', 'Geçene kadar aktif süre (P50, dk)', false],
+    ['minsQ', 'Geçene kadar aktif süre (dk)', false],
+    ['triesQ', 'Geçene kadar deneme', false],
   ];
+  const pctQ = () => +state.f.pct / 100;
+  const pctLabel = () => 'P' + state.f.pct;
 
   function levelStats(recs, nPlayers) {
     const won = recs.filter((r) => r.won);
@@ -1836,10 +1849,8 @@ td .low { color: var(--muted); font-size: 11px; }
       retry: ratio(recs.filter((r) => r.attempts > 1).length, recs.length),
       retries: sum(recs, (r) => r.attempts - 1),
       restarts: sum(recs, (r) => r.restarts),
-      minsP50: quantile(won.map((r) => r.mins), 0.5),
-      minsP90: quantile(won.map((r) => r.mins), 0.9),
-      triesP50: quantile(won.map((r) => r.attempts), 0.5),
-      triesP90: quantile(won.map((r) => r.attempts), 0.9),
+      minsQ: quantile(won.map((r) => r.mins), pctQ()),
+      triesQ: quantileRank(won.map((r) => r.attempts), pctQ()),
       assist: ratio(recs.filter((r) => r.burn || r.move || r.fan || r.extra || r.slot || r.adCard || r.contCoin || r.contAd || r.failPack).length, recs.length),
       cont: ratio(recs.filter((r) => r.contCoin || r.contAd || r.failPack).length, recs.length),
       abandon: ratio(recs.filter((r) => r.abandon > 0).length, recs.length),
@@ -1876,7 +1887,7 @@ td .low { color: var(--muted); font-size: 11px; }
       + kpi(g, 'Başlayan oyuncu', (m) => m.total.unique, F.int, 'Seçili levellerde tekil oyuncu')
       + kpi(g, 'Geçme oranı', (m) => t(m).pass, F.pct, 'Geçilen / başlanan oyuncu–level')
       + kpi(g, 'İlk denemede geçme', (m) => t(m).first, F.pct, 'Tek denemede geçen / başlanan')
-      + kpi(g, 'Geçene kadar süre', (m) => t(m).minsP50, F.min, (m) => 'P50 · P90: ' + F.min(m.total.minsP90))
+      + kpi(g, 'Geçene kadar süre', (m) => t(m).minsQ, F.min, (m) => pctLabel() + ' · deneme ' + pctLabel() + ': ' + F.int(m.total.triesQ))
       + kpi(g, '7 gün geri dönmeme', (m) => t(m).churn7, F.pct, 'Level’dan sonra 7 gün dönmeyen')
       + kpi(g, 'Yarıda bırakma', (m) => t(m).abandon, F.pct, 'Oturumu level ortasında biten')
       + kpi(g, 'İlk ödeme', (m) => t(m).firstPay, F.pct, (m) => F.int(m.total.firstPayN[0]) + ' / ' + F.int(m.total.firstPayN[1]) + ' non-payer giriş')
@@ -1884,7 +1895,7 @@ td .low { color: var(--muted); font-size: 11px; }
       + '</div>';
     const lvKeys = [];
     for (let lv = f.lvFrom; lv <= f.lvTo; lv++) lvKeys.push(lv);
-    const metric = LEVEL_METRICS.find((x) => x[0] === state.levelMetric);
+    const metric = LEVEL_METRICS.find((x) => x[0] === state.levelMetric) || LEVEL_METRICS[0];
     const chart = section('Level boyunca', 'Bir çubuğa tıkla: level detayı açılır.',
       barChart({
         categories: lvKeys.map((lv) => String(lv)),
@@ -1895,7 +1906,7 @@ td .low { color: var(--muted); font-size: 11px; }
         click: 'level',
         tipLabel: (i) => 'Level ' + lvKeys[i],
       }),
-      '<div class="toolbar">' + legend(g.names) + select('levelMetric', metric[0], LEVEL_METRICS.map((x) => [x[0], x[1]])) + '</div>');
+      '<div class="toolbar">' + legend(g.names) + select('levelMetric', metric[0], LEVEL_METRICS.map((x) => [x[0], x[1] + (x[2] ? '' : ' · ' + pctLabel())])) + '</div>');
     const tbl = section('Level karşılaştırması', 'Satıra tıkla: retry, fail hunisi ve yardım kullanımı.',
       table(g, [
         { h: 'Level', raw: (lv) => '<a>Level ' + lv + '</a>' + (g.all.per[lv].starters < 50 ? ' <span class="low">az örnek</span>' : '') },
@@ -1904,13 +1915,13 @@ td .low { color: var(--muted); font-size: 11px; }
         { h: 'Geçme', get: (m, lv) => m.per[lv].pass, f: F.pct },
         { h: 'İlk deneme', get: (m, lv) => m.per[lv].first, f: F.pct },
         { h: 'Retry', get: (m, lv) => m.per[lv].retry, f: F.pct },
-        { h: 'Süre dk · P50 / P90', get: (m, lv) => m.per[lv], f: (s) => pair(s.minsP50, s.minsP90, F.dec) },
-        { h: 'Deneme · P50 / P90', get: (m, lv) => m.per[lv], f: (s) => pair(s.triesP50, s.triesP90, F.int) },
+        { h: 'Süre dk · ' + pctLabel(), get: (m, lv) => m.per[lv].minsQ, f: F.dec },
+        { h: 'Deneme · ' + pctLabel(), get: (m, lv) => m.per[lv].triesQ, f: F.int },
         { h: 'Yardım', get: (m, lv) => m.per[lv].assist, f: F.pct },
         { h: 'Devam', get: (m, lv) => m.per[lv].cont, f: F.pct },
         { h: 'İlk ödeme', get: (m, lv) => m.per[lv].firstPay, f: F.pct },
         { h: '7g dönmeme', get: (m, lv) => m.per[lv].churn7, f: F.pct },
-      ], lvKeys, { click: 'level', foot: 'Süre ve deneme: level’ı geçenler · Yardım: booster, Extra, altınla slot, reklam kartı veya devam · Devam: fail ekranında altın, reklam ya da fail paketi · 50’den az oyuncuda “az örnek”.' }));
+      ], lvKeys, { click: 'level', foot: 'Süre ve deneme: level’ı geçenler, seçili persentil (' + pctLabel() + ') · Yardım: booster, Extra, altınla slot, reklam kartı veya devam · Devam: fail ekranında altın, reklam ya da fail paketi · 50’den az oyuncuda “az örnek”.' }));
     return kpis + chart + tbl;
   }
 
@@ -1947,7 +1958,7 @@ td .low { color: var(--muted); font-size: 11px; }
       + '<button class="btn" data-action="close">Kapat ×</button></div>';
     html += '<div class="mini-kpis">'
       + kpi(g, 'Geçme oranı', (m) => m.pass, F.pct, (m) => 'İlk denemede ' + F.pct(m.first), true)
-      + kpi(g, 'Geçene kadar aktif süre', (m) => m.minsP50, F.min, (m) => 'P50 · P90: ' + F.min(m.minsP90), true)
+      + kpi(g, 'Geçene kadar aktif süre', (m) => m.minsQ, F.min, (m) => pctLabel() + ' · deneme ' + pctLabel() + ': ' + F.int(m.triesQ), true)
       + kpi(g, 'Retry yapan oyuncu', (m) => m.retry, F.pct, (m) => F.int(m.retries) + ' retry · ' + F.int(m.restarts) + ' Settings restart', true)
       + kpi(g, '7 gün geri dönmeme', (m) => m.churn7, F.pct, 'Bu level’da kalıp dönmeyen', true)
       + '</div>';
@@ -2145,7 +2156,23 @@ td .low { color: var(--muted); font-size: 11px; }
       offers,
       products,
       sources,
+      variants: bundleVariants(ds),
     };
+  }
+
+  // Each market bundle is shown as its No Ads variant until the player owns No Ads, then as the -standard one.
+  // Viewers are players who opened the Market in that state; every open shows all five bundles.
+  function bundleVariants(ds) {
+    const seenWith = ds.players.filter((p) => p.marketSeen[0] > 0);
+    const seenWithout = ds.players.filter((p) => p.marketSeen[1] > 0);
+    const side = (id, viewers) => {
+      const orders = ds.purchases.filter((o) => o.product === id);
+      const buyers = new Set(orders.map((o) => o.p)).size;
+      return { orders: orders.length, conv: ratio(buyers, viewers.length), revenue: sum(orders, (o) => o.usd) };
+    };
+    const rows = {};
+    for (const id of S.MARKET_BUNDLES) rows[id] = { withAds: side(id, seenWith), withoutAds: side(id + '-standard', seenWithout) };
+    return { rows, seenWith: seenWith.length, seenWithout: seenWithout.length };
   }
 
   function renderMarket() {
@@ -2168,11 +2195,26 @@ td .low { color: var(--muted); font-size: 11px; }
         { h: 'Satın alan', get: (m, i) => m.offers[OFFERS[i][0]].conv, f: F.pct },
         { h: 'Gelir', get: (m, i) => m.offers[OFFERS[i][0]].revenue, f: F.usd },
       ], offerKeys, { foot: 'Satın alan: teklifi gören oyuncular içinde. Daily “Tüm günler” Daily sekmesinde.' }));
+    const v = g.all.variants;
+    const variants = section('Market paketleri · No Ads’li ve No Ads’siz',
+      'No Ads’i olmayan oyuncu paketin No Ads’li halini, No Ads sahibi aynı fiyattaki No Ads’siz halini görür. Market’i No Ads’siz açan: '
+        + F.int(v.seenWith) + ' oyuncu · No Ads sahibiyken açan: ' + F.int(v.seenWithout) + ' oyuncu. Dönüşüm: o halde Market’i açanlar içinde alan.',
+      table(g, [
+        { h: 'Paket', raw: (id) => S.PRODUCTS[id].name.split(' · ')[0] },
+        { h: 'Fiyat', raw: (id) => '$' + nf2.format(S.PRODUCTS[id].usd) },
+        { h: 'No Ads’li · satın alma', get: (m, id) => m.variants.rows[id].withAds.orders, f: F.int },
+        { h: 'No Ads’li · dönüşüm', get: (m, id) => m.variants.rows[id].withAds.conv, f: F.pct },
+        { h: 'No Ads’li · gelir', get: (m, id) => m.variants.rows[id].withAds.revenue, f: F.usd },
+        { h: 'No Ads’siz · satın alma', get: (m, id) => m.variants.rows[id].withoutAds.orders, f: F.int },
+        { h: 'No Ads’siz · dönüşüm', get: (m, id) => m.variants.rows[id].withoutAds.conv, f: F.pct },
+        { h: 'No Ads’siz · gelir', get: (m, id) => m.variants.rows[id].withoutAds.revenue, f: F.usd },
+      ], S.MARKET_BUNDLES, { foot: 'No Ads’li paketler tek seferlik; alan oyuncu No Ads sahibi olur ve sonraki açılışlarda No Ads’siz hali görür.' }));
     const ids = Object.keys(S.PRODUCTS).sort((a, b) => g.all.products[b].revenue - g.all.products[a].revenue);
     const products = section('Ürünler', 'Fiyatlar USD karşılığı, demo değer.',
       table(g, [
         { h: 'Ürün', raw: (id) => S.PRODUCTS[id].name },
         { h: 'Grup', raw: (id) => '<span class="tag">' + S.PRODUCTS[id].group + '</span>' },
+        { h: 'No Ads', raw: (id) => (S.PRODUCTS[id].noads ? 'Var' : '—') },
         { h: 'Fiyat', raw: (id) => '$' + nf2.format(S.PRODUCTS[id].usd) },
         { h: 'Satın alma', get: (m, id) => m.products[id].count, f: F.int },
         { h: 'Alıcı', get: (m, id) => m.products[id].buyers.size, f: F.int },
@@ -2189,10 +2231,15 @@ td .low { color: var(--muted); font-size: 11px; }
         { h: 'Satın alma', get: (m, i) => m.sources[MARKET_SOURCES[i][0]].buys, f: F.int },
         { h: 'Dönüşüm', get: (m, i) => ratio(m.sources[MARKET_SOURCES[i][0]].buys, m.sources[MARKET_SOURCES[i][0]].opens), f: F.pct },
       ], srcKeys));
-    return kpis + offers + products + sources;
+    return kpis + offers + variants + products + sources;
   }
 
   // ---------- 05 Daily ----------
+  const DAILY_BOARD_METRICS = [
+    ['reach', 'Oynanma oranı', 'Oynanma: Board 1’i oynayanların bu board’a ulaşma oranı.'],
+    ['done', 'Tamamlama oranı', 'Tamamlama: board’u oynayan oyunculardan bitiren (retry dahil).'],
+  ];
+
   function computeDaily(ds) {
     const eligible = ds.players.filter((p) => p.maxWon >= S.UNLOCK.daily);
     const plays = ds.dailies;
@@ -2200,16 +2247,36 @@ td .low { color: var(--muted); font-size: 11px; }
     const playDays = new Set(plays.map((r) => r.p.id + ':' + r.day)).size;
     let eligibleDays = 0;
     for (const p of eligible) eligibleDays += p.active.filter((d) => p.levelAt[d] > S.UNLOCK.daily).length;
+    // Fixed phase: board N is every player's N-th Daily date, so "played" works as a reach funnel.
+    // Repeat phase (after the 38th date) is counted separately per board and per player-date.
     const boards = [];
-    for (let b = 0; b < S.DAILY_BOARDS; b++) boards.push([]);
-    for (const r of plays) boards[r.board].push(r);
-    const boardStats = boards.map((rs) => ({
-      plays: rs.length,
-      done: ratio(rs.filter((r) => r.completed).length, rs.length),
-      limit: ratio(rs.filter((r) => r.hitLimit).length, rs.length),
-      cont: ratio(rs.filter((r) => r.continued).length, rs.filter((r) => r.hitLimit).length),
-      mins: quantile(rs.map((r) => r.mins), 0.5),
+    for (let b = 0; b < S.DAILY_BOARDS; b++) {
+      boards.push({ plays: [], players: new Set(), done: new Set(), repeatDates: new Set(), repeatDone: new Set() });
+    }
+    for (const r of plays) {
+      const s = boards[r.board];
+      if (r.repeat) {
+        s.repeatDates.add(r.p.id + ':' + r.date);
+        if (r.completed) s.repeatDone.add(r.p.id + ':' + r.date);
+        continue;
+      }
+      s.plays.push(r);
+      s.players.add(r.p);
+      if (r.completed) s.done.add(r.p);
+    }
+    const starters = boards[0].players.size;
+    const boardStats = boards.map((s) => ({
+      players: s.players.size,
+      reach: ratio(s.players.size, starters),
+      done: ratio(s.done.size, s.players.size),
+      tries: ratio(s.plays.length, s.players.size),
+      limit: ratio(s.plays.filter((r) => r.hitLimit).length, s.plays.length),
+      cont: ratio(s.plays.filter((r) => r.continued).length, s.plays.filter((r) => r.hitLimit).length),
+      mins: quantile(s.plays.map((r) => r.mins), 0.5),
+      repeat: s.repeatDates.size,
+      repeatDone: ratio(s.repeatDone.size, s.repeatDates.size),
     }));
+    const maxOrder = plays.reduce((mx, r) => Math.max(mx, r.order), 0);
     const part = [...participants];
     return {
       eligible: eligible.length,
@@ -2219,6 +2286,7 @@ td .low { color: var(--muted); font-size: 11px; }
       adEntry: ratio(plays.filter((r) => r.entry === 'past_ad' || r.entry === 'retry_ad').length, plays.length),
       plays: plays.length,
       boardStats,
+      maxOrder,
       milestones: S.DAILY_MILESTONES.map((ms, i) => ({
         reached: ratio(part.filter((p) => p.milestones[i]).length, part.length),
         claimed: ratio(part.filter((p) => p.milestoneClaimed[i]).length, part.filter((p) => p.milestones[i]).length),
@@ -2237,8 +2305,12 @@ td .low { color: var(--muted); font-size: 11px; }
       + '</div>';
     const keys = [];
     for (let b = 0; b < S.DAILY_BOARDS; b++) keys.push(b);
-    const chart = section('Board başına tamamlama', '38 board sırayla takvime dağıtılır.',
-      barChart({ categories: keys.map((b) => String(b + 1)), series: series(g, (m) => m.boardStats.map((s) => s.done)), pct: true, max: 1, tipLabel: (i) => 'Board ' + (i + 1) }), legend(g.names));
+    const metric = DAILY_BOARD_METRICS.find((x) => x[0] === state.dailyMetric) || DAILY_BOARD_METRICS[0];
+    const chips = '<div class="chips">' + DAILY_BOARD_METRICS.map((x) => '<button class="chip' + (x[0] === metric[0] ? ' on' : '') + '" data-action="dailyMetric" data-key="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>';
+    const chart = section('Board’lar · oynanma ve tamamlama',
+      'İlk ' + S.DAILY_BOARDS + ' Daily gününde board’lar takvim tarihinden bağımsız, her oyuncuya aynı sırayla gelir: 1. Daily günü Board 1, 2. günü Board 2. ' + metric[2],
+      chips + barChart({ categories: keys.map((b) => String(b + 1)), series: series(g, (m) => m.boardStats.map((s) => s[metric[0]])), pct: true, max: 1, tipLabel: (i) => 'Board ' + (i + 1) }),
+      legend(g.names));
     const milestones = section('Milestone hunisi', 'Katılımcılar içinde ulaşan; ödülü alan ise ulaşanlar içinde.',
       barRows(g, S.DAILY_MILESTONES.map((ms, i) => ({
         name: ms.at + ' tamamlanan gün',
@@ -2246,91 +2318,28 @@ td .low { color: var(--muted); font-size: 11px; }
         get: (m) => m.milestones[i].reached,
         third: (m) => m.milestones[i].claimed,
       })), { h1: 'Milestone', h2: 'Ulaşan', h3: 'Ödül alan' }));
-    const tbl = section('Board’lar', 'Limit: süre veya hamle. Devam: limite takılıp reklamla +30 sn / +5 hamle alan.',
+    const inPool = (b) => b >= S.DAILY_REPEAT_FROM;
+    const tbl = section('Board tablosu', 'Oynanma ve tamamlama ilk ' + S.DAILY_BOARDS + ' Daily günü içindir. Tekrar havuzu: ' + (S.DAILY_BOARDS + 1) + '. Daily gününden sonra Board ' + (S.DAILY_REPEAT_FROM + 1) + '–' + S.DAILY_BOARDS + ' yeniden oynatılır.',
       table(g, [
-        { h: 'Board', raw: (b) => 'Board ' + (b + 1) },
+        { h: 'Board', raw: (b) => 'Board ' + (b + 1) + (g.all.boardStats[b].players < 50 ? ' <span class="low">az örnek</span>' : '') },
         { h: 'Limit', raw: (b) => '<span class="tag">' + (S.DAILY_LIMIT[b] === 'time' ? 'Süre' : 'Hamle') + '</span>' },
-        { h: 'Oynanış', get: (m, b) => m.boardStats[b].plays, f: F.int },
+        { h: 'Oynayan', get: (m, b) => m.boardStats[b].players, f: F.int },
+        { h: 'Oynanma', get: (m, b) => m.boardStats[b].reach, f: F.pct },
         { h: 'Tamamlama', get: (m, b) => m.boardStats[b].done, f: F.pct },
+        { h: 'Deneme / oyuncu', get: (m, b) => m.boardStats[b].tries, f: F.dec2 },
         { h: 'Limite takılma', get: (m, b) => m.boardStats[b].limit, f: F.pct },
         { h: 'Devam', get: (m, b) => m.boardStats[b].cont, f: F.pct },
         { h: 'Süre P50', get: (m, b) => m.boardStats[b].mins, f: F.min },
-      ], keys));
+        { h: 'Tekrar havuzu · oynanma', raw: (b) => (inPool(b) ? cell(g, (m) => m.boardStats[b].repeat, F.int) : '<span class="tag">Havuz dışı</span>') },
+        { h: 'Tekrar havuzu · tamamlama', raw: (b) => (inPool(b) ? cell(g, (m) => m.boardStats[b].repeatDone, F.pct) : '—') },
+      ], keys, { foot: 'Oynanma: Board 1’i oynayanların bu board’a ulaşma oranı · Tamamlama: board’u oynayan oyunculardan bitiren (retry dahil) · Limit: süre veya hamle · Devam: limite takılıp reklamla +30 sn / +5 hamle alan · Sıra kuralı: src/daily/model.js boardIndex. Seçili veride en uzun Daily serisi: ' + g.all.maxOrder + ' gün.' }));
     return kpis + chart + milestones + tbl;
   }
 
   // ---------- 06 Event ----------
-  const EVENT_STEPS = ['Event girişini gördü', 'Event ekranını açtı', 'Katıldı · ilk puan', '1. ödül', '2. ödül', '3. ödül', 'Tamamladı · son ödül'];
-  function computeEvent(ds) {
-    const out = {};
-    for (const ev of S.EVENTS) {
-      const eligible = ds.players.filter((p) => p.ev[ev.id].eligible);
-      const joined = eligible.filter((p) => p.ev[ev.id].steps >= 3);
-      const rest = eligible.filter((p) => p.ev[ev.id].steps < 3);
-      const days = [];
-      for (let d = ev.start; d <= ev.end; d++) days.push(joined.filter((p) => p.ev[ev.id].days.includes(d)).length);
-      const retained = (list) => {
-        const m = list.filter((p) => p.ev[ev.id].retained !== null);
-        return ratio(m.filter((p) => p.ev[ev.id].retained).length, m.length);
-      };
-      out[ev.id] = {
-        eligible: eligible.length,
-        steps: EVENT_STEPS.map((s, i) => ratio(eligible.filter((p) => p.ev[ev.id].steps >= i + 1).length, eligible.length)),
-        join: ratio(joined.length, eligible.length),
-        done: ratio(joined.filter((p) => p.ev[ev.id].steps >= 7).length, joined.length),
-        levels: quantile(joined.map((p) => p.ev[ev.id].levels), 0.5),
-        revenue: sum(joined, (p) => p.ev[ev.id].revenue),
-        payers: joined.filter((p) => p.ev[ev.id].revenue > 0).length,
-        days,
-        retJoined: retained(joined),
-        retRest: retained(rest),
-      };
-    }
-    const reached = ds.players.filter((p) => p.maxWon >= S.UNLOCK.eventButton - 1);
-    const tappers = reached.filter((p) => p.eventTaps > 0);
-    out.button = { reached: reached.length, tap: ratio(tappers.length, reached.length), taps: ratio(sum(tappers, (p) => p.eventTaps), tappers.length) };
-    return out;
-  }
-
+  // The game has no event system yet (src/meta/event-entry.js is a placeholder); the tab stays empty on purpose.
   function renderEvent() {
-    const g = groupsFor(computeEvent);
-    const id = state.eventId;
-    const ev = S.EVENTS.find((e) => e.id === id);
-    const e = (m) => m[id];
-    const notice = '<div class="notice">Oyunda henüz event sistemi yok. Bugün yalnızca L8’de açılan event butonuna ilgi ölçülebilir. Event metrikleri örnek bir kurguyla gösteriliyor; yapı, ileride gelecek her event için aynı kalır.</div>';
-    const picker = select('eventId', id, S.EVENTS.map((x) => [x.id, x.name]));
-    const kpis = '<div class="kpis">'
-      + kpi(g, 'Katılım', (m) => e(m).join, F.pct, (m) => 'Uygun ' + F.int(m[id].eligible) + ' oyuncu içinde')
-      + kpi(g, 'Tamamlama', (m) => e(m).done, F.pct, 'Katılanlar içinde son ödül')
-      + kpi(g, 'Katılımcı başı level', (m) => e(m).levels, F.int, 'P50 · event günlerinde')
-      + kpi(g, 'Event geliri', (m) => e(m).revenue, F.usd, (m) => F.int(m[id].payers) + ' ödeme yapan katılımcı')
-      + '</div>';
-    const funnel = section('Event hunisi', 'Uygun: event döneminde aktif ve L8+ oyuncu. Her adım uygun oyunculara oranlanır.',
-      barRows(g, EVENT_STEPS.map((s, i) => ({ name: s, get: (m) => m[id].steps[i] })), { h1: 'Adım', h2: 'Uygunlardan' }), '<div class="toolbar">' + legend(g.names) + picker + '</div>');
-    const dayLabels = [];
-    for (let d = ev.start; d <= ev.end; d++) dayLabels.push(shortDate(d));
-    const daily = section('Günlük aktif katılımcı', ev.name + ' · ' + shortDate(ev.start) + '–' + shortDate(ev.end),
-      barChart({ categories: dayLabels, series: series(g, (m) => m[id].days), fmt: F.int, height: 200 }), legend(g.names));
-    const effect = section('Event sonrası 7 gün', 'Katılan ve katılmayan uygun oyuncuların event bitiminden sonraki 7 günde aktif olma oranı. Nedensellik değil, karşılaştırma.',
-      barRows(g, [
-        { name: 'Katılanlar', get: (m) => m[id].retJoined },
-        { name: 'Katılmayanlar', get: (m) => m[id].retRest },
-      ], { h1: 'Grup', h2: 'Aktif' }));
-    const button = section('Event butonu ilgisi (bugün ölçülebilen)', 'L8’e ulaşan oyuncular içinde, “yakında” uyarısına rağmen butona dokunan.',
-      barRows(g, [
-        { name: 'Butona dokunan', get: (m) => m.button.tap, third: (m) => m.button.taps, f3: F.dec },
-      ], { h1: 'Metrik', h2: 'Oran', h3: 'Dokunan başı' }));
-    const list = section('Event karşılaştırması', '',
-      table(g, [
-        { h: 'Event', raw: (i) => S.EVENTS[i].name },
-        { h: 'Tarih', raw: (i) => shortDate(S.EVENTS[i].start) + '–' + shortDate(S.EVENTS[i].end) },
-        { h: 'Uygun', get: (m, i) => m[S.EVENTS[i].id].eligible, f: F.int },
-        { h: 'Katılım', get: (m, i) => m[S.EVENTS[i].id].join, f: F.pct },
-        { h: 'Tamamlama', get: (m, i) => m[S.EVENTS[i].id].done, f: F.pct },
-        { h: 'Level P50', get: (m, i) => m[S.EVENTS[i].id].levels, f: F.int },
-        { h: 'Gelir', get: (m, i) => m[S.EVENTS[i].id].revenue, f: F.usd },
-      ], S.EVENTS.map((x, i) => i)));
-    return notice + kpis + funnel + daily + '<div class="grid-2">' + effect + button + '</div>' + list;
+    return '<div class="notice">Oyunda henüz event sistemi yok. Event sistemi eklendiğinde dashboard detayları oluşturulacaktır.</div>';
   }
 
   // ---------- 07 Economy & Free ----------
@@ -2435,7 +2444,7 @@ td .low { color: var(--muted); font-size: 11px; }
     const balSeries = state.compare
       ? series(g, (m) => m.balP50).map((s) => Object.assign(s, { name: s.name + ' P50' }))
       : [{ name: 'P50', values: g.all.balP50, color: 0 }, { name: 'P90', values: g.all.balP90, color: 1 }];
-    const balance = section('Level girişinde altın bakiyesi', state.compare ? 'P50, Paid ve Organik.' : 'P50 ve P90.',
+    const balance = section('Level girişinde altın bakiyesi', state.compare ? 'P50, ' + g.names.join(' ve ') + '.' : 'P50 ve P90.',
       lineChart({ categories: g.all.lv.map((l) => 'L' + l), series: balSeries, fmt: F.int }),
       legend(balSeries.map((s) => s.name)));
     const flow = (list, key, total) => table(g, [
@@ -2478,7 +2487,7 @@ td .low { color: var(--muted); font-size: 11px; }
     ads: [renderAds, 'Rewarded yerleşimleri, interstitial ve banner.'],
     market: [renderMarket, 'IAP geliri, teklifler, ürünler ve Market’e giriş noktaları.'],
     daily: [renderDaily, 'Daily Challenge katılımı, board zorluğu ve milestone’lar.'],
-    event: [renderEvent, 'Event katılımı, ilerleme, gelir ve retention etkisi.'],
+    event: [renderEvent, ''],
     economy: [renderEconomy, 'Altın, booster, can ve Treasure akışı.'],
   };
 
@@ -2487,23 +2496,25 @@ td .low { color: var(--muted); font-size: 11px; }
     const opt = (key, options) => '<select data-filter="' + key + '">' + options.map((o) => '<option value="' + o[0] + '"' + (String(f[key]) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>';
     let html = '<div class="card filters"><div class="filter-row">'
       + '<div class="field"><label>Kurulum kohortu</label><div class="range"><input type="date" data-filter="from" value="' + f.from + '" min="2026-09-01" max="2026-09-30"> – <input type="date" data-filter="to" value="' + f.to + '" min="2026-09-01" max="2026-09-30"></div></div>'
-      + '<div class="field"><label>Edinim</label>' + opt('acq', [['all', 'Paid + Organik'], ['paid', 'Paid'], ['organic', 'Organik']]) + '</div>'
+      + (state.compare === 'acq' ? '' : '<div class="field"><label>Edinim</label>' + opt('acq', [['all', 'Paid + Organik'], ['paid', 'Paid'], ['organic', 'Organik']]) + '</div>')
+      + (state.compare === 'payer' ? '' : '<div class="field"><label>Ödeme durumu</label>' + opt('payerType', [['all', 'Payer + Non-payer'], ['payer', 'Payer'], ['nonpayer', 'Non-payer']]) + '</div>')
       + '<div class="field"><label>Platform</label>' + opt('platform', [['all', 'iOS + Android'], ['ios', 'iOS'], ['android', 'Android']]) + '</div>'
       + '<div class="field"><label>Ülke</label>' + opt('country', [['all', 'Tüm ülkeler'], ['TR', 'Türkiye'], ['US', 'ABD'], ['DE', 'Almanya'], ['BR', 'Brezilya'], ['OTHER', 'Diğer']]) + '</div>'
       + versionFields(opt);
     if (state.tab === 'level') {
       html += '<div class="field"><label>Level’a giriş günü</label>' + opt('entryDay', [['all', 'Tüm günler'], ['d0', 'D0'], ['d1', 'D1–3'], ['d4', 'D4–7'], ['d8', 'D8+']]) + '</div>'
-        + '<div class="field"><label>Level’a girişte</label>' + opt('payer', [['all', 'Payer + Non-payer'], ['payer', 'Payer'], ['nonpayer', 'Non-payer']]) + '</div>'
+        + '<div class="field"><label>Level’a girişte ödeme</label>' + opt('payer', [['all', 'Payer + Non-payer'], ['payer', 'Payer'], ['nonpayer', 'Non-payer']]) + '</div>'
+        + '<div class="field"><label>Persentil</label>' + opt('pct', [['50', 'P50'], ['75', 'P75'], ['90', 'P90'], ['99', 'P99']]) + '</div>'
         + '<div class="field"><label>Level aralığı</label><div class="range"><input type="number" min="1" max="60" data-filter="lvFrom" value="' + f.lvFrom + '"> – <input type="number" min="1" max="60" data-filter="lvTo" value="' + f.lvTo + '"></div></div>';
     }
     const inFilter = S.players.filter((p) => playerPass(p, f));
     const count = state.compare === 'version'
       ? [state.verA, state.verB].map((v) => v + ': ' + F.int(inFilter.filter((p) => p.version === v).length)).join(' · ') + ' oyuncu'
       : F.int(inFilter.length) + ' oyuncu';
-    const modes = [['none', 'Yok'], ['acq', 'Paid vs Organik']];
+    const modes = [['none', 'Yok'], ['acq', 'Paid vs Organik'], ['payer', 'Payer vs Non-payer']];
     if (state.tab === 'onboarding') modes.push(['version', 'Sürüm A vs B']);
     const current = state.compare || 'none';
-    html += '</div><div class="filter-foot"><div class="sample">' + count + ' · gözlem sonu ' + shortDate(S.OBS_END) + '.2026 · sentetik veri</div>'
+    html += '</div><div class="filter-foot"><div class="sample">' + count + ' · gözlem sonu ' + shortDate(S.OBS_END) + '.2026 · sentetik veri' + (f.payerType !== 'all' || state.compare === 'payer' ? ' · Payer: gözlem süresinde en az 1 satın alma' : '') + '</div>'
       + '<div class="toolbar"><span class="sample">Kırılım</span><div class="seg">' + modes.map((m) => '<button data-action="compare" data-key="' + m[0] + '" class="' + (m[0] === current ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div>'
       + '<button class="btn" data-action="reset">Sıfırla</button></div></div></div>';
     return html;
@@ -2529,7 +2540,8 @@ td .low { color: var(--muted); font-size: 11px; }
     renderNav();
     const tab = TABS.find((t) => t.id === state.tab);
     const [fn, desc] = RENDER[state.tab];
-    view.innerHTML = '<div class="page-head"><div><h1>' + tab.name + '</h1><p>' + desc + '</p></div></div>' + filterBar() + fn();
+    const filters = state.tab === 'event' ? '' : filterBar(); // nothing to filter until events exist
+    view.innerHTML = '<div class="page-head"><div><h1>' + tab.name + '</h1>' + (desc ? '<p>' + desc + '</p>' : '') + '</div></div>' + filters + fn();
     if (state.drawerLevel !== null) openDrawer(state.drawerLevel);
   }
 
@@ -2565,6 +2577,9 @@ td .low { color: var(--muted); font-size: 11px; }
     } else if (action === 'reset') {
       state.f = Object.assign({}, DEFAULT_FILTERS);
       state.compare = false;
+      render();
+    } else if (action === 'dailyMetric') {
+      state.dailyMetric = key;
       render();
     } else if (action === 'trend') {
       state.trend = key;
