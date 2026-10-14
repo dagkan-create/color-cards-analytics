@@ -492,10 +492,10 @@ td .low { color: var(--muted); font-size: 11px; }
     ['booster_extra', 'Booster · Extra', 'Ana oyun'],
     ['life', '+1 can', 'Ana oyun'],
     // Treasure chain steps are separate placements; each is offered only after the previous step paid out.
-    ['treasure_coins', 'Treasure · 1. adım · 90 altın', 'Free'],
-    ['treasure_burn', 'Treasure · 2. adım · Burn', 'Free'],
-    ['treasure_lives', 'Treasure · 3. adım · 20 dk sınırsız can', 'Free'],
-    ['treasure_fan', 'Treasure · 4. adım · Fan', 'Free'],
+    ['treasure_1', 'Treasure · 1. adım · 90 altın', 'Free'],
+    ['treasure_2', 'Treasure · 2. adım · Burn', 'Free'],
+    ['treasure_3', 'Treasure · 3. adım · 20 dk sınırsız can', 'Free'],
+    ['treasure_4', 'Treasure · 4. adım · Fan', 'Free'],
     ['daily_entry', 'Daily · giriş', 'Daily'],
     ['daily_continue', 'Daily · devam', 'Daily'],
     ['daily_restart', 'Daily · restart', 'Daily'],
@@ -506,9 +506,9 @@ td .low { color: var(--muted); font-size: 11px; }
   const COUNTRY_PAY = { TR: 0.6, US: 1.8, DE: 1.4, BR: 0.5, OTHER: 0.9 };
 
   // Daily board assignment mirrors src/daily/model.js boardIndex(): a player's n-th distinct Daily date gets
-  // board n for the first 38 dates, then boards 6-38 repeat in order (config.json repeatFromBoardIndex: 5).
+  // board n for the first 60 dates, then boards 6-60 repeat in order (the first 5 are the fixed tutorial run).
   // The calendar date does not pick the board, and a retried date keeps its board.
-  const DAILY_BOARDS = 38;
+  const DAILY_BOARDS = 60;
   const DAILY_REPEAT_FROM = 5;
   function dailyBoardIndex(n) {
     return n < DAILY_BOARDS ? n : DAILY_REPEAT_FROM + ((n - DAILY_BOARDS) % (DAILY_BOARDS - DAILY_REPEAT_FROM));
@@ -516,7 +516,7 @@ td .low { color: var(--muted); font-size: 11px; }
   const DAILY_DIFF = [];
   for (let i = 0; i < DAILY_BOARDS; i++) DAILY_DIFF.push(0.18 + R() * 0.32);
   // Fail type per board from src/daily/boards.json (FailType 10 = time, otherwise moves).
-  const DAILY_LIMIT = 'tttttmttmttmttmtmmtmmttmtmmmmmmmmmmmmm'.split('').map((c) => (c === 't' ? 'time' : 'moves'));
+  const DAILY_LIMIT = 'tttttmttmttmttmtmmtmmttmtmmmmmmmmmmmmmmmtmmtmmmtmmmtmmtmmmtm'.split('').map((c) => (c === 't' ? 'time' : 'moves'));
   const DAILY_MILESTONES = [
     { at: 5, coins: 80 },
     { at: 12, coins: 120 },
@@ -1081,17 +1081,17 @@ td .low { color: var(--muted); font-size: 11px; }
     const free = pickW({ 0: 25, 1: 40, 2: 25, 3: 10 }) | 0;
     p.treasure.free += free;
     if (free) earn(p, 'treasure', 10 * free);
-    if (!rewarded(p, 'treasure_coins', 0.3)) return;
+    if (!rewarded(p, 'treasure_1', 0.3)) return;
     p.treasure.chain[0]++;
     earn(p, 'treasure', 90);
-    if (!rewarded(p, 'treasure_burn', 0.55)) return;
+    if (!rewarded(p, 'treasure_2', 0.55)) return;
     p.treasure.chain[1]++;
     grant(p, 'burn', 1, 'treasure');
-    if (!rewarded(p, 'treasure_lives', 0.55)) return;
+    if (!rewarded(p, 'treasure_3', 0.55)) return;
     p.treasure.chain[2]++;
     p.infUntil = Math.max(p.infUntil, p.t) + 20;
     p.infMin += 20;
-    if (!rewarded(p, 'treasure_fan', 0.55)) return;
+    if (!rewarded(p, 'treasure_4', 0.55)) return;
     p.treasure.chain[3]++;
     grant(p, 'fan', 1, 'treasure');
   }
