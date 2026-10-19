@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- authoring-only: Color Cards product analytics dashboard draft (synthetic data, no network, no game saves). -->
-<html lang="tr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -200,6 +200,8 @@ button, select, input { font: inherit; color: inherit; }
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
 .kpis.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .kpis.five .k-value { font-size: 26px; }
+.kpis.six { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.kpis.six .k-value { font-size: 24px; }
 .k-split { flex-wrap: wrap; row-gap: 2px; }
 .k-split span { white-space: nowrap; } /* keep each group's dot, name and value on one line */
 .kpi { padding: 16px 18px; }
@@ -229,6 +231,7 @@ button, select, input { font: inherit; color: inherit; }
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .chart .axis text { fill: var(--muted); font-size: 11px; }
 .chart .grid line { stroke: var(--line); }
+.chart .grid line.zero { stroke: var(--muted); }
 .chart .val { fill: var(--text-2); font-size: 10.5px; }
 .chart .hit { fill: transparent; cursor: pointer; }
 .chart .hit:hover { fill: rgba(42, 120, 214, 0.06); }
@@ -342,10 +345,10 @@ td .low { color: var(--muted); font-size: 11px; }
 .note { color: var(--muted); font-size: 12px; margin-top: 8px; }
 
 @media (max-width: 1300px) {
-  .kpis.five { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .kpis.five, .kpis.six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 1100px) {
-  .kpis, .kpis.five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpis, .kpis.five, .kpis.six { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid-2 { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
@@ -363,12 +366,12 @@ td .low { color: var(--muted); font-size: 11px; }
       <div class="brand"><b>Color Cards</b><span>PRODUCT ANALYTICS</span></div>
       <div class="nav-label">WORKSPACE</div>
       <nav class="nav-list" id="nav-list"></nav>
-      <div class="nav-foot">Firebase → BigQuery → Bruin<br>Arayüz taslağı · v0.2<br>Sentetik veri, canlı bağlantı yok</div>
+      <div class="nav-foot">Firebase → BigQuery → Bruin<br>UI draft · v0.3<br>Synthetic data, no live connection</div>
     </aside>
     <main class="main" id="view"></main>
   </div>
   <div class="scrim" id="scrim"></div>
-  <aside class="drawer" id="drawer" aria-label="Level detayı"></aside>
+  <aside class="drawer" id="drawer" aria-label="Level detail"></aside>
   <div class="tip" id="tip"></div>
   <script>
 // authoring-only: synthetic player data for the analytics dashboard draft.
@@ -381,7 +384,7 @@ td .low { color: var(--muted); font-size: 11px; }
   const INSTALL_DAYS = 30; // installs 2026-09-01 .. 2026-09-30
   const OBS_END = 37; // observation ends 2026-10-08
   const PLAYER_COUNT = 6000;
-  const MAX_LEVEL = 60;
+  const MAX_LEVEL = 100; // the game's designed levels; later ones replay the stage loop
 
   function dateOf(dayIndex) {
     return new Date(DAY0 + dayIndex * 864e5).toISOString().slice(0, 10);
@@ -397,6 +400,17 @@ td .low { color: var(--muted); font-size: 11px; }
   }
   function gauss() {
     return Math.sqrt(-2 * Math.log(R() + 1e-12)) * Math.cos(2 * Math.PI * R());
+  }
+  // A second stream draws the deal, fail-point and session details, so adding them left every earlier figure unchanged.
+  let seed2 = 20261019;
+  function R2() {
+    seed2 = (seed2 + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed2 ^ (seed2 >>> 15), 1 | seed2);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  function gauss2() {
+    return Math.sqrt(-2 * Math.log(R2() + 1e-12)) * Math.cos(2 * Math.PI * R2());
   }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function int(lo, hi) { return lo + Math.floor(R() * (hi - lo + 1)); }
@@ -420,15 +434,21 @@ td .low { color: var(--muted); font-size: 11px; }
     1: 'Tutorial · Extra',
     2: 'Burn',
     4: 'Move',
-    5: 'Reklam kartı · Daily',
+    5: 'Ad card · Daily',
     7: 'Wild · Fan',
-    8: 'Event butonu',
+    8: 'Event button',
     13: 'Stone',
     22: 'Mystery',
-    28: 'Tahta geçişi',
+    28: 'Board transition',
     37: 'Tied',
     53: 'Frozen',
+    77: 'Box',
   };
+  // Special-card features dealt by the game (feature-config.json default unlock levels) and the `deal` event's
+  // group counts. A feature is off on some levels by design; the first deal of its unlock level always brings it.
+  const FEATURES = [['wild', 'Wild', 7], ['stone', 'Stone', 13], ['mystery', 'Mystery', 22], ['tied', 'Tied', 37], ['frozen', 'Frozen', 53], ['box', 'Box', 77]];
+  const FEATURE_RATE = { wild: 0.22, stone: 0.18, mystery: 0.2, tied: 0.16, frozen: 0.14, box: 0.12 }; // groups per deal when on
+  const featureOn = (key, level) => (level * 7 + key.length * 13) % 5 < 3;
   const SPIKE = { 8: 0.3, 13: 0.2, 16: 0.16, 18: 0.14, 19: 0.12, 22: 0.2, 28: 0.22, 33: 0.12, 37: 0.2, 45: 0.15, 53: 0.22 };
   const BOARD_CLEAR = { 28: true, 41: true, 55: true }; // +200 coins when a table boundary is crossed
   function difficulty(level) {
@@ -437,32 +457,32 @@ td .low { color: var(--muted); font-size: 11px; }
   }
 
   const PRODUCTS = {
-    welcome: { name: 'Welcome paketi', group: 'Teklif', usd: 1.99, coins: 700, boost: 2, inf: 120 },
+    welcome: { name: 'Welcome pack', group: 'Offer', usd: 1.99, coins: 700, boost: 2, inf: 120 },
     'beginner-small': { name: 'Starter · Small', group: 'Starter', usd: 2.99, coins: 500, boost: 1, inf: 0 },
     'beginner-medium': { name: 'Starter · Medium', group: 'Starter', usd: 6.99, coins: 1000, boost: 3, inf: 60 },
     'beginner-large': { name: 'Starter · Large', group: 'Starter', usd: 12.99, coins: 2000, boost: 5, inf: 120, noads: true },
     'beginner-all': { name: 'Starter · Get All', group: 'Starter', usd: 17.99, coins: 3500, boost: 9, inf: 180, noads: true },
-    noads: { name: 'No Ads', group: 'Teklif', usd: 9.99, noads: true },
-    'fail-continue': { name: 'Fail paketi', group: 'Fail', usd: 7.99, coins: 600, boost: 1, inf: 60, extra: 1 },
-    'daily-all-days': { name: 'Daily · Tüm günler', group: 'Daily', usd: 4.99 },
-    'gold-300': { name: '300 altın', group: 'Altın', usd: 2.49, coins: 300 },
-    'gold-1500': { name: '1.500 altın', group: 'Altın', usd: 9.99, coins: 1500 },
-    'gold-3000': { name: '3.000 altın', group: 'Altın', usd: 14.99, coins: 3000 },
-    'gold-7500': { name: '7.500 altın', group: 'Altın', usd: 29.99, coins: 7500 },
-    'gold-15000': { name: '15.000 altın', group: 'Altın', usd: 49.99, coins: 15000 },
-    'gold-30000': { name: '30.000 altın', group: 'Altın', usd: 99.99, coins: 30000 },
+    noads: { name: 'No Ads', group: 'Offer', usd: 9.99, noads: true },
+    'fail-continue': { name: 'Play On pack', group: 'Fail', usd: 7.99, coins: 600, boost: 1, inf: 60, extra: 1 },
+    'daily-all-days': { name: 'Daily · All Days', group: 'Daily', usd: 4.99 },
+    'gold-300': { name: '300 coins', group: 'Coins', usd: 2.49, coins: 300 },
+    'gold-1500': { name: '1,500 coins', group: 'Coins', usd: 9.99, coins: 1500 },
+    'gold-3000': { name: '3,000 coins', group: 'Coins', usd: 14.99, coins: 3000 },
+    'gold-7500': { name: '7,500 coins', group: 'Coins', usd: 29.99, coins: 7500 },
+    'gold-15000': { name: '15,000 coins', group: 'Coins', usd: 49.99, coins: 15000 },
+    'gold-30000': { name: '30,000 coins', group: 'Coins', usd: 99.99, coins: 30000 },
     // Market bundles ship in two variants (catalog.json): the No Ads one (closedByNoAds, once) for players
     // without No Ads, and the -standard one (requiresNoAds) for No Ads owners. Same price and contents.
-    elite: { name: 'Elite · No Ads’li', group: 'Market paketi', usd: 12.99, coins: 900, boost: 1, noads: true },
-    mega: { name: 'Mega · No Ads’li', group: 'Market paketi', usd: 24.99, coins: 3300, boost: 2, noads: true },
-    luxury: { name: 'Luxury · No Ads’li', group: 'Market paketi', usd: 49.99, coins: 10000, boost: 4, inf: 360, extra: 4, noads: true },
-    royal: { name: 'Royal · No Ads’li', group: 'Market paketi', usd: 99.99, coins: 20000, boost: 10, inf: 720, extra: 10, noads: true },
-    ultimate: { name: 'Ultimate · No Ads’li', group: 'Market paketi', usd: 119.99, coins: 25000, boost: 13, inf: 1080, extra: 13, noads: true },
-    'elite-standard': { name: 'Elite · No Ads’siz', group: 'Market paketi', usd: 12.99, coins: 900, boost: 1, variantOf: 'elite' },
-    'mega-standard': { name: 'Mega · No Ads’siz', group: 'Market paketi', usd: 24.99, coins: 3300, boost: 2, variantOf: 'mega' },
-    'luxury-standard': { name: 'Luxury · No Ads’siz', group: 'Market paketi', usd: 49.99, coins: 10000, boost: 4, inf: 360, extra: 4, variantOf: 'luxury' },
-    'royal-standard': { name: 'Royal · No Ads’siz', group: 'Market paketi', usd: 99.99, coins: 20000, boost: 10, inf: 720, extra: 10, variantOf: 'royal' },
-    'ultimate-standard': { name: 'Ultimate · No Ads’siz', group: 'Market paketi', usd: 119.99, coins: 25000, boost: 13, inf: 1080, extra: 13, variantOf: 'ultimate' },
+    elite: { name: 'Elite · with No Ads', group: 'Market bundle', usd: 12.99, coins: 900, boost: 1, noads: true },
+    mega: { name: 'Mega · with No Ads', group: 'Market bundle', usd: 24.99, coins: 3300, boost: 2, noads: true },
+    luxury: { name: 'Luxury · with No Ads', group: 'Market bundle', usd: 49.99, coins: 10000, boost: 4, inf: 360, extra: 4, noads: true },
+    royal: { name: 'Royal · with No Ads', group: 'Market bundle', usd: 99.99, coins: 20000, boost: 10, inf: 720, extra: 10, noads: true },
+    ultimate: { name: 'Ultimate · with No Ads', group: 'Market bundle', usd: 119.99, coins: 25000, boost: 13, inf: 1080, extra: 13, noads: true },
+    'elite-standard': { name: 'Elite · without No Ads', group: 'Market bundle', usd: 12.99, coins: 900, boost: 1, variantOf: 'elite' },
+    'mega-standard': { name: 'Mega · without No Ads', group: 'Market bundle', usd: 24.99, coins: 3300, boost: 2, variantOf: 'mega' },
+    'luxury-standard': { name: 'Luxury · without No Ads', group: 'Market bundle', usd: 49.99, coins: 10000, boost: 4, inf: 360, extra: 4, variantOf: 'luxury' },
+    'royal-standard': { name: 'Royal · without No Ads', group: 'Market bundle', usd: 99.99, coins: 20000, boost: 10, inf: 720, extra: 10, variantOf: 'royal' },
+    'ultimate-standard': { name: 'Ultimate · without No Ads', group: 'Market bundle', usd: 119.99, coins: 25000, boost: 13, inf: 1080, extra: 13, variantOf: 'ultimate' },
   };
   const MARKET_BUNDLES = ['elite', 'mega', 'luxury', 'royal', 'ultimate'];
   const MARKET_MIX = {
@@ -483,21 +503,21 @@ td .low { color: var(--muted); font-size: 11px; }
 
   // Placement keys double as the future rewarded-ad `placement` parameter.
   const PLACEMENTS = [
-    ['get2x', 'Get2X · level sonu', 'Ana oyun'],
-    ['ad_card', 'Reklam kartı', 'Ana oyun'],
-    ['continue', 'Devam · fail ekranı', 'Ana oyun'],
-    ['booster_burn', 'Booster · Burn', 'Ana oyun'],
-    ['booster_move', 'Booster · Move', 'Ana oyun'],
-    ['booster_fan', 'Booster · Fan', 'Ana oyun'],
-    ['booster_extra', 'Booster · Extra', 'Ana oyun'],
-    ['life', '+1 can', 'Ana oyun'],
+    ['get2x', 'Get2X · level end', 'Main game'],
+    ['ad_card', 'Ad card', 'Main game'],
+    ['continue', 'Continue · fail screen', 'Main game'],
+    ['booster_burn', 'Booster · Burn', 'Main game'],
+    ['booster_move', 'Booster · Move', 'Main game'],
+    ['booster_fan', 'Booster · Fan', 'Main game'],
+    ['booster_extra', 'Booster · Extra', 'Main game'],
+    ['life', '+1 life', 'Main game'],
     // Treasure chain steps are separate placements; each is offered only after the previous step paid out.
-    ['treasure_1', 'Treasure · 1. adım · 90 altın', 'Free'],
-    ['treasure_2', 'Treasure · 2. adım · Burn', 'Free'],
-    ['treasure_3', 'Treasure · 3. adım · 20 dk sınırsız can', 'Free'],
-    ['treasure_4', 'Treasure · 4. adım · Fan', 'Free'],
-    ['daily_entry', 'Daily · giriş', 'Daily'],
-    ['daily_continue', 'Daily · devam', 'Daily'],
+    ['treasure_1', 'Treasure · step 1 · 90 coins', 'Free'],
+    ['treasure_2', 'Treasure · step 2 · Burn', 'Free'],
+    ['treasure_3', 'Treasure · step 3 · 20 min infinite lives', 'Free'],
+    ['treasure_4', 'Treasure · step 4 · Fan', 'Free'],
+    ['daily_entry', 'Daily · entry', 'Daily'],
+    ['daily_continue', 'Daily · continue', 'Daily'],
     ['daily_restart', 'Daily · restart', 'Daily'],
     ['daily_booster', 'Daily · booster', 'Daily'],
   ];
@@ -525,15 +545,15 @@ td .low { color: var(--muted); font-size: 11px; }
   ];
 
   const ONBOARDING_TUTORIAL = [
-    ['first_open', 'Uygulama ilk açıldı', 0],
-    ['loading_complete', 'Yükleme tamamlandı', 0.025],
-    ['level_start · L1', 'Level 1 başladı', 0.015],
-    ['tutorial_step · guided_move', 'Yönlendirilen ilk hamle', 0.02],
-    ['tutorial_step · first_merge', 'İlk merge', 0.022],
-    ['tutorial_step · first_deal', 'İlk Deal', 0.015],
-    ['tutorial_step · goal_tip', 'Hedef ipucu görüldü', 0.01],
-    ['tutorial_step · slot_unlock', 'İlk ücretsiz slot açıldı', 0.034],
-    ['tutorial_step · extra_used', 'Extra tanıtıldı ve kullanıldı', 0.028],
+    ['first_open', 'App first opened', 0],
+    ['loading_complete', 'Loading complete', 0.025],
+    ['level_start · L1', 'Level 1 started', 0.015],
+    ['tutorial_step · guided_move', 'Guided first move', 0.02],
+    ['tutorial_step · first_merge', 'First merge', 0.022],
+    ['tutorial_step · first_deal', 'First Deal', 0.015],
+    ['tutorial_step · goal_tip', 'Goal tip seen', 0.01],
+    ['tutorial_step · slot_unlock', 'First free slot unlocked', 0.034],
+    ['tutorial_step · extra_used', 'Extra introduced and used', 0.028],
   ];
   // Synthetic release differences so the version comparison has something to show:
   // 1.0.0 loads slower, 1.1.0 clarifies the first move and slot unlock and eases Level 8.
@@ -626,6 +646,8 @@ td .low { color: var(--muted); font-size: 11px; }
       milestones: [0, 0, 0, 0],
       milestoneClaimed: [0, 0, 0, 0],
       eventTaps: 0,
+      sessions: [], // { day, min, levels }: Firebase session_start / engagement_time_msec and level_start per ga_session_id
+      sessionLevels: 0,
       // session-only simulation clocks
       t: 0,
       day: 0,
@@ -703,7 +725,7 @@ td .low { color: var(--muted); font-size: 11px; }
     }
     if (prod.noads) p.noads = true;
     if (productId === 'daily-all-days') p.allDays = true;
-    if (productId !== 'gold-300' && PRODUCTS[productId].group !== 'Altın') p.bought[productId] = true;
+    if (productId !== 'gold-300' && PRODUCTS[productId].group !== 'Coins') p.bought[productId] = true;
   }
 
   function openMarket(p, source) {
@@ -873,8 +895,32 @@ td .low { color: var(--muted); font-size: 11px; }
     return (1.4 + level * 0.035 + difficulty(level) * 4) * Math.exp(gauss() * 0.35);
   }
 
+  // Objective share completed when the fail screen opens: skilled players fail closer to the goal, hard levels earlier.
+  function failPoint(p, level) {
+    return Math.round(clamp(58 + 30 * (p.skill - 0.5) - 40 * (difficulty(level) - 0.3) + gauss2() * 18, 2, 98));
+  }
+  // Deals of one attempt with the special groups each one places (the game's `deal` event).
+  function dealAttempt(rec, mins) {
+    const level = rec.level;
+    const n = Math.max(1, Math.round(mins * (2.6 + R2() * 1.4)));
+    const maxGroups = level < 22 ? 1 : level < 52 ? 2 : 3; // the active-board mechanic budget grows with level
+    for (let i = 0; i < n; i++) {
+      let budget = maxGroups;
+      for (const [key, , unlock] of FEATURES) {
+        if (!budget || level < unlock) continue;
+        const intro = level === unlock && rec.deals === 0;
+        if (intro || (featureOn(key, level) && R2() < FEATURE_RATE[key])) {
+          rec.specials[key]++;
+          budget--;
+        }
+      }
+      rec.deals++;
+    }
+  }
+
   function failFlow(p, rec, baseWin) {
     rec.fails++;
+    rec.failProg.push(failPoint(p, rec.level));
     for (let k = 0; k < 3; k++) {
       const price = 250 + 85 * Math.min(p.failChain, 4);
       let resumed = false;
@@ -903,6 +949,7 @@ td .low { color: var(--muted); font-size: 11px; }
       if (!resumed) break;
       if (R() < clamp(baseWin + 0.25, 0, 0.95)) return 'win';
       rec.fails++;
+      rec.failProg.push(failPoint(p, rec.level));
     }
     rec.failClose++;
     loseLife(p, 'fail');
@@ -934,6 +981,9 @@ td .low { color: var(--muted); font-size: 11px; }
       adCard: 0,
       get2x: false,
       interstitials: 0,
+      deals: 0, // `deal` events across every attempt
+      specials: { wild: 0, stone: 0, mystery: 0, tied: 0, frozen: 0, box: 0 }, // special groups dealt
+      failProg: [], // level_fail.goal_progress_pct per fail screen
       coinsAtEntry: p.coins,
       payer: p.purchases.length > 0,
       firstPay: false,
@@ -977,11 +1027,13 @@ td .low { color: var(--muted); font-size: 11px; }
       return;
     }
     rec.attempts++;
+    p.sessionLevels++;
     rec.lastDay = p.day;
     p.attemptsByDay[p.day] = (p.attemptsByDay[p.day] || 0) + 1;
     const mins = attemptMinutes(level);
     p.t += mins;
     rec.mins += mins;
+    dealAttempt(rec, mins);
     if (level >= 4 && !p.noads) p.banner += Math.round(mins * 2); // banner refresh every 30 s
     if (level >= 4 && !p.noads) addRev(p, 'ad', AD_VALUE.banner * p.adValue * mins * 2);
 
@@ -1213,6 +1265,7 @@ td .low { color: var(--muted); font-size: 11px; }
       }
       for (let s = 0; s < sessions && !p.churned && !p.dayOver; s++) {
         p.sessionT = p.t;
+        p.sessionLevels = 0;
         p.quit = false;
         const end = p.t + budget / sessions;
         if (s === 0) dailyOffers(p);
@@ -1228,6 +1281,8 @@ td .low { color: var(--muted); font-size: 11px; }
           if (s === 0) p.firstSessionMin = p.t - p.sessionT;
           p.d0Min += p.t - p.sessionT;
         }
+        // An app open that played nothing still lasts a few seconds; only the session record gets that time.
+        p.sessions.push({ day, min: p.t > p.sessionT ? p.t - p.sessionT : 0.3 + R2() * 0.7, levels: p.sessionLevels });
         p.t += 60 + R() * 180;
       }
     }
@@ -1278,6 +1333,7 @@ td .low { color: var(--muted); font-size: 11px; }
     MAX_LEVEL,
     UNLOCK,
     NEW_AT,
+    FEATURES,
     PRODUCTS,
     MARKET_BUNDLES,
     PLACEMENTS,
@@ -1308,14 +1364,14 @@ td .low { color: var(--muted); font-size: 11px; }
 
   const TABS = [
     { id: 'onboarding', name: 'Onboarding' },
-    { id: 'overview', name: 'Genel bakış' },
-    { id: 'level', name: 'Level performansı' },
-    { id: 'ads', name: 'Reklam' },
+    { id: 'overview', name: 'Overview' },
+    { id: 'level', name: 'Level performance' },
+    { id: 'ads', name: 'Ads' },
     { id: 'market', name: 'Market & Offers' },
     { id: 'daily', name: 'Daily' },
     { id: 'event', name: 'Event' },
-    { id: 'economy', name: 'Ekonomi & Free' },
-    { id: 'permissions', name: 'İzinler' },
+    { id: 'economy', name: 'Economy & Free' },
+    { id: 'permissions', name: 'Permissions' },
   ];
 
   const DEFAULT_FILTERS = {
@@ -1347,23 +1403,24 @@ td .low { color: var(--muted); font-size: 11px; }
   };
 
   // ---------- formatting ----------
-  const nf0 = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 });
-  const nf1 = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  const nf2 = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const nf0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+  const nf1 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const nf2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const ok = (v) => v !== null && v !== undefined && isFinite(v);
   const F = {
     int: (v) => (ok(v) ? nf0.format(Math.round(v)) : '—'),
     pct: (v) => (ok(v) ? nf1.format(v * 100) + '%' : '—'),
     pct0: (v) => (ok(v) ? nf0.format(v * 100) + '%' : '—'),
     usd: (v) => (ok(v) ? '$' + (Math.abs(v) >= 100 ? nf0.format(v) : nf2.format(v)) : '—'),
-    usd3: (v) => (ok(v) ? '$' + new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(v) : '—'),
+    usd3: (v) => (ok(v) ? '$' + new Intl.NumberFormat('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(v) : '—'),
     dec: (v) => (ok(v) ? nf1.format(v) : '—'),
     dec2: (v) => (ok(v) ? nf2.format(v) : '—'),
-    min: (v) => (ok(v) ? nf1.format(v) + ' dk' : '—'),
+    min: (v) => (ok(v) ? nf1.format(v) + ' min' : '—'),
+    pp: (v) => (ok(v) ? (v > 0 ? '+' : '') + nf1.format(v * 100) + ' pp' : '—'),
   };
   const pair = (a, b, f) => (ok(a) || ok(b) ? f(a) + ' / ' + f(b) : '—');
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-  const shortDate = (dayIndex) => S.dateOf(dayIndex).slice(8, 10) + '.' + S.dateOf(dayIndex).slice(5, 7);
+  const shortDate = (dayIndex) => S.dateOf(dayIndex).slice(5, 7) + '/' + S.dateOf(dayIndex).slice(8, 10);
 
   // ---------- math ----------
   const sum = (arr, f) => arr.reduce((s, x) => s + (f ? f(x) : x), 0);
@@ -1423,23 +1480,23 @@ td .low { color: var(--muted); font-size: 11px; }
   }
   function compareGroups() {
     if (state.compare === 'acq') {
-      return [['Paid', (p) => p.acq === 'paid'], ['Organik', (p) => p.acq === 'organic']];
+      return [['Paid', (p) => p.acq === 'paid'], ['Organic', (p) => p.acq === 'organic']];
     }
     if (state.compare === 'payer') {
       return [['Payer', (p) => p.purchases.length > 0], ['Non-payer', (p) => p.purchases.length === 0]];
     }
     if (state.compare === 'version') {
-      return [['Sürüm ' + state.verA, (p) => p.version === state.verA], ['Sürüm ' + state.verB, (p) => p.version === state.verB]];
+      return [['Version ' + state.verA, (p) => p.version === state.verA], ['Version ' + state.verB, (p) => p.version === state.verB]];
     }
     return null;
   }
-  // Groups drive every split view: one "Tümü" group, or the two compared groups.
-  // In a version split "Tümü" covers only the two chosen versions.
+  // Groups drive every split view: one "All" group, or the two compared groups.
+  // In a version split "All" covers only the two chosen versions.
   function groupsFor(compute) {
     const groups = compareGroups();
     if (!groups) {
       const all = compute(buildDataset(null));
-      return { all, ms: [all], names: ['Tümü'] };
+      return { all, ms: [all], names: ['All'] };
     }
     return {
       all: compute(buildDataset((p) => groups.some((gr) => gr[1](p)))),
@@ -1496,7 +1553,7 @@ td .low { color: var(--muted); font-size: 11px; }
   // Horizontal bar rows: used for funnels and share lists. values are 0..1 per group.
   function barRows(g, rows, opts) {
     opts = opts || {};
-    const head = '<div class="row head"><div>' + (opts.h1 || 'Adım') + '</div><div></div><div class="num">' + (opts.h2 || 'Oran') + '</div><div class="num">' + (opts.h3 || '') + '</div></div>';
+    const head = '<div class="row head"><div>' + (opts.h1 || 'Step') + '</div><div></div><div class="num">' + (opts.h2 || 'Rate') + '</div><div class="num">' + (opts.h3 || '') + '</div></div>';
     const body = rows.map((r) => {
       const vals = g.ms.map((m) => r.get(m));
       const bars = vals.map((v, i) => '<div class="bar ' + (state.compare ? DOTS[i] : 'single') + '"><i style="width:' + Math.max(0, Math.min(100, (v || 0) * 100)) + '%"></i></div>').join('');
@@ -1517,7 +1574,7 @@ td .low { color: var(--muted); font-size: 11px; }
     return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
   }
 
-  // Vertical bars: one series, or Paid/Organik side by side.
+  // Vertical bars: one series, or Paid/Organic side by side.
   function barChart(opts) {
     const W = 1000;
     const H = opts.height || 240;
@@ -1558,6 +1615,43 @@ td .low { color: var(--muted); font-size: 11px; }
         if (k === 1 && n <= 22) out += '<text class="val" x="' + (x + bw / 2) + '" y="' + (top - 5) + '" text-anchor="middle">' + (opts.pct ? F.pct0(v) : opts.fmt(v)) + '</text>';
       });
       const tipText = esc(opts.tipLabel ? opts.tipLabel(i) : c) + '<br>' + opts.series.map((s) => esc(s.name) + ': ' + (opts.pct ? F.pct(s.values[i]) : opts.fmt(s.values[i]))).join('<br>');
+      out += '<rect class="hit" x="' + (m.l + band * i) + '" y="' + m.t + '" width="' + band + '" height="' + ih + '" data-tip="' + esc(tipText) + '"' + (opts.click ? ' data-action="' + opts.click + '" data-key="' + opts.keys[i] + '"' : '') + '></rect>';
+    });
+    return '<div class="chart"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + out + '</svg></div>';
+  }
+
+  // Bars around a zero line for signed changes: above the line is an increase, below a decrease. A single series is
+  // colored by sign (increase = harder); a split keeps each group's color.
+  function deltaChart(opts) {
+    const W = 1000;
+    const H = opts.height || 220;
+    const m = { l: 56, r: 8, t: 14, b: 26 };
+    const iw = W - m.l - m.r;
+    const ih = H - m.t - m.b;
+    const n = opts.categories.length;
+    const top = niceMax(Math.max(0.01, ...opts.series.flatMap((s) => s.values.filter(ok).map(Math.abs))), true);
+    const band = iw / Math.max(1, n);
+    const k = opts.series.length;
+    const bw = Math.max(2, Math.min(30, (band * 0.7) / k - (k > 1 ? 1 : 0)));
+    const y = (v) => m.t + ih / 2 - (v / top) * (ih / 2);
+    let out = '<g class="grid">';
+    for (const v of [-top, -top / 2, 0, top / 2, top]) out += '<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y(v) + '" y2="' + y(v) + '"' + (v === 0 ? ' class="zero"' : '') + '></line>';
+    out += '</g><g class="axis">';
+    for (const v of [-top, -top / 2, 0, top / 2, top]) out += '<text x="' + (m.l - 8) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + F.pp(v) + '</text>';
+    const every = Math.ceil(n / 24);
+    opts.categories.forEach((c, i) => {
+      if (i % every === 0) out += '<text x="' + (m.l + band * i + band / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + c + '</text>';
+    });
+    out += '</g>';
+    opts.categories.forEach((c, i) => {
+      const x0 = m.l + band * i + (band - (bw * k + 2 * (k - 1))) / 2;
+      opts.series.forEach((s, j) => {
+        const v = s.values[i];
+        if (!ok(v)) return;
+        const fill = k === 1 ? (v > 0 ? 'var(--drop)' : 'var(--s3)') : COLORS[s.color || j];
+        out += '<rect fill="' + fill + '" x="' + (x0 + j * (bw + 2)) + '" y="' + Math.min(y(0), y(v)) + '" width="' + bw + '" height="' + Math.max(1, Math.abs(y(v) - y(0))) + '" rx="2"></rect>';
+      });
+      const tipText = esc(opts.tipLabel ? opts.tipLabel(i) : c) + '<br>' + opts.series.map((s) => esc(s.name) + ': ' + F.pp(s.values[i])).join('<br>');
       out += '<rect class="hit" x="' + (m.l + band * i) + '" y="' + m.t + '" width="' + band + '" height="' + ih + '" data-tip="' + esc(tipText) + '"' + (opts.click ? ' data-action="' + opts.click + '" data-key="' + opts.keys[i] + '"' : '') + '></rect>';
     });
     return '<div class="chart"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + out + '</svg></div>';
@@ -1618,7 +1712,7 @@ td .low { color: var(--muted); font-size: 11px; }
     S.ONBOARDING_LEVELS.forEach((lv) => {
       steps.push({
         code: 'level_complete · L' + lv,
-        name: 'Level ' + lv + ' tamamlandı',
+        name: 'Level ' + lv + ' completed',
         count: ds.players.filter((p) => wonInWindow(p, lv)).length,
       });
     });
@@ -1658,10 +1752,10 @@ td .low { color: var(--muted); font-size: 11px; }
     const steps = g.all.steps;
     const hot = steps.map((s, i) => [s.loss, i]).sort((a, b) => b[0] - a[0]).slice(0, 3).map((x) => x[1]);
     const kpis = '<div class="kpis">'
-      + kpi(g, 'Tutorial tamamlama', (m) => m.tutorial, F.pct, 'Level 1’i geçen / kurulum · ilk 7 gün')
-      + kpi(g, 'Level 10’u geçen', (m) => m.l10, F.pct, 'Kurulumların payı · ilk 7 gün')
-      + kpi(g, 'D1 dönüş', (m) => m.d1, F.pct, 'Ertesi gün açan / kurulum')
-      + kpi(g, 'İlk oturum süresi', (m) => m.firstSession, F.min, 'P50 · aktif oyun süresi')
+      + kpi(g, 'Tutorial completion', (m) => m.tutorial, F.pct, 'Passed Level 1 / installs · first 7 days')
+      + kpi(g, 'Passed Level 10', (m) => m.l10, F.pct, 'Share of installs · first 7 days')
+      + kpi(g, 'D1 return', (m) => m.d1, F.pct, 'Opened the next day / installs')
+      + kpi(g, 'First session length', (m) => m.firstSession, F.min, 'P50 · active play time')
       + '</div>';
     const rows = steps.map((s, i) => ({
       name: s.name,
@@ -1671,16 +1765,16 @@ td .low { color: var(--muted); font-size: 11px; }
       third: (m) => (i === 0 ? null : 1 - m.steps[i].conv),
       dropClass: true,
     }));
-    const funnel = section('Onboarding hunisi', 'Kurulumdan sonraki ilk 7 gün içinde her event’i tamamlayan oyuncu payı. Vurgulu satırlar en büyük 3 kırılma.' + (state.compare === 'version' ? ' Sürümler farklı tarihlerde yayınlandı; sabit pencere karşılaştırmayı adil tutar.' : ''),
-      barRows(g, rows, { h1: 'Event', h2: 'Kurulumdan', h3: 'Adım kaybı' }), legend(g.names));
-    const intro = section('Booster tanıtımı → ilk kullanım', 'İlk 7 günde unlock level’ına ulaşan oyuncular içinde.',
+    const funnel = section('Onboarding funnel', 'Share of installs completing each event within 7 days of install. Highlighted rows are the 3 largest drops.' + (state.compare === 'version' ? ' Versions shipped on different dates; the fixed window keeps the comparison fair.' : ''),
+      barRows(g, rows, { h1: 'Event', h2: 'Of installs', h3: 'Step loss' }), legend(g.names));
+    const intro = section('Booster introduction → first use', 'Among players who reached the unlock level within the first 7 days.',
       table(g, [
         { h: 'Booster', raw: (k) => g.all.intros[k].name },
         { h: 'Unlock', raw: (k) => 'L' + g.all.intros[k].at },
-        { h: 'Ulaşan', get: (m, k) => m.intros[k].reached, f: F.int },
-        { h: 'Aynı level’da kullandı', get: (m, k) => m.intros[k].same, f: F.pct },
-        { h: '3 level içinde', get: (m, k) => m.intros[k].within3, f: F.pct },
-        { h: 'Hiç kullanmadı', get: (m, k) => m.intros[k].never, f: F.pct },
+        { h: 'Reached', get: (m, k) => m.intros[k].reached, f: F.int },
+        { h: 'Used on the same level', get: (m, k) => m.intros[k].same, f: F.pct },
+        { h: 'Within 3 levels', get: (m, k) => m.intros[k].within3, f: F.pct },
+        { h: 'Never used', get: (m, k) => m.intros[k].never, f: F.pct },
       ], [0, 1, 2]));
     return kpis + funnel + intro;
   }
@@ -1689,11 +1783,13 @@ td .low { color: var(--muted); font-size: 11px; }
   const COHORT_DAYS = [0, 1, 2, 3, 4, 5, 6, 7, 14, 30];
   const TREND_METRICS = [
     ['dau', 'DAU', (m) => m.dau, F.int],
-    ['installs', 'Kurulum', (m) => m.installs, F.int],
-    ['rev', 'Toplam gelir', (m) => m.rev, F.usd],
-    ['ad', 'Reklam geliri', (m) => m.revAd, F.usd],
-    ['iap', 'IAP geliri', (m) => m.revIap, F.usd],
+    ['installs', 'Installs', (m) => m.installs, F.int],
+    ['rev', 'Total revenue', (m) => m.rev, F.usd],
+    ['ad', 'Ad revenue', (m) => m.revAd, F.usd],
+    ['iap', 'IAP revenue', (m) => m.revIap, F.usd],
   ];
+
+  const LEVELS_PER_SESSION = [[0, 0, '0'], [1, 1, '1'], [2, 2, '2'], [3, 3, '3'], [4, 5, '4–5'], [6, 9, '6–9'], [10, Infinity, '10+']];
 
   function computeOverview(ds) {
     const from = dayIndexOf(state.f.from);
@@ -1758,6 +1854,7 @@ td .low { color: var(--muted); font-size: 11px; }
     }
     const retention = ret.map((v, i) => ratio(v, retBase[i]));
     const dauSum = sum(dau);
+    const sessions = ds.players.flatMap((p) => p.sessions);
     // A cohort cell exists only once day N has been observed for that install date.
     for (const c of cohorts) c.ret = COHORT_DAYS.map((n, i) => (c.day + n <= S.OBS_END ? ratio(c.active[i], c.n) : null));
     const cohortTotal = COHORT_DAYS.map((n, i) => {
@@ -1786,36 +1883,56 @@ td .low { color: var(--muted); font-size: 11px; }
       firstP90: quantile(ds.players.map((p) => p.firstSessionMin), 0.9),
       d0P50: quantile(ds.players.map((p) => p.d0Min), 0.5),
       d0P90: quantile(ds.players.map((p) => p.d0Min), 0.9),
+      // Firebase session_start / ga_session_id: length from engagement_time_msec, levels from level_start.
+      sessionN: sessions.length,
+      sessionAvg: ratio(sum(sessions, (x) => x.min), sessions.length),
+      sessionP50: quantile(sessions.map((x) => x.min), 0.5),
+      sessionP90: quantile(sessions.map((x) => x.min), 0.9),
+      levelsAvg: ratio(sum(sessions, (x) => x.levels), sessions.length),
+      levelsP50: quantileRank(sessions.map((x) => x.levels), 0.5),
+      sessionsPerDau: ratio(sessions.length, ds.activeDays),
+      levelsDist: LEVELS_PER_SESSION.map(([lo, hi]) => ratio(sessions.filter((x) => x.levels >= lo && x.levels <= hi).length, sessions.length)),
     };
   }
 
   function renderOverview() {
     const g = groupsFor(computeOverview);
-    const kpis = '<div class="kpis five">'
-      + kpi(g, 'Kurulum', (m) => m.n, F.int, 'Seçili kohort')
-      + kpi(g, 'Ortalama DAU', (m) => m.dauAvg, F.int, 'Kohort başlangıcından gözlem sonuna')
-      + kpi(g, 'D1 retention', (m) => m.retention[1], F.pct, 'Takibi tamamlanmış kurulumlar')
-      + kpi(g, 'D7 retention', (m) => m.retention[7], F.pct, 'Takibi tamamlanmış kurulumlar')
-      + kpi(g, 'D30 retention', (m) => m.retention[30], F.pct, 'Takibi tamamlanmış kurulumlar')
-      + kpi(g, 'İlk oturum süresi', (m) => m.firstP50, F.min, (m) => 'P50 · P90: ' + F.min(m.firstP90))
-      + kpi(g, 'D0 oyun süresi', (m) => m.d0P50, F.min, (m) => 'Kurulum günü toplam · P50 · P90: ' + F.min(m.d0P90))
-      + kpi(g, 'Toplam gelir', (m) => m.revenue, F.usd, (m) => 'IAP ' + F.usd(m.iap) + ' · Reklam ' + F.usd(m.ad))
-      + kpi(g, 'ARPDAU', (m) => m.arpdau, F.usd3, 'Gelir / DAU günleri')
-      + kpi(g, 'LTV D7', (m) => m.ltv7, F.usd3, (m) => 'Kurulum başı gelir · D30: ' + F.usd3(m.ltv30))
+    const kpis = '<div class="kpis six">'
+      + kpi(g, 'Installs', (m) => m.n, F.int, 'Selected cohort')
+      + kpi(g, 'Average DAU', (m) => m.dauAvg, F.int, 'From cohort start to observation end')
+      + kpi(g, 'D1 retention', (m) => m.retention[1], F.pct, 'Installs with a complete follow-up')
+      + kpi(g, 'D7 retention', (m) => m.retention[7], F.pct, 'Installs with a complete follow-up')
+      + kpi(g, 'D30 retention', (m) => m.retention[30], F.pct, 'Installs with a complete follow-up')
+      + kpi(g, 'First session length', (m) => m.firstP50, F.min, (m) => 'P50 · P90: ' + F.min(m.firstP90))
+      + kpi(g, 'Avg session time', (m) => m.sessionAvg, F.min, (m) => 'Every session · P50 ' + F.min(m.sessionP50))
+      + kpi(g, 'Levels per session', (m) => m.levelsAvg, F.dec2, (m) => 'Average · P50 ' + F.int(m.levelsP50))
+      + kpi(g, 'D0 play time', (m) => m.d0P50, F.min, (m) => 'Install-day total · P50 · P90: ' + F.min(m.d0P90))
+      + kpi(g, 'Total revenue', (m) => m.revenue, F.usd, (m) => 'IAP ' + F.usd(m.iap) + ' · Ads ' + F.usd(m.ad))
+      + kpi(g, 'ARPDAU', (m) => m.arpdau, F.usd3, 'Revenue / DAU days')
+      + kpi(g, 'LTV D7', (m) => m.ltv7, F.usd3, (m) => 'Revenue per install · D30: ' + F.usd3(m.ltv30))
       + '</div>';
     // One metric at a time: mixing counts and revenue would need a second y-axis.
     const trendDef = TREND_METRICS.find((t) => t[0] === state.trend) || TREND_METRICS[0];
     const chips = '<div class="chips">' + TREND_METRICS.map((t) => '<button class="chip' + (t[0] === trendDef[0] ? ' on' : '') + '" data-action="trend" data-key="' + t[0] + '">' + t[1] + '</button>').join('') + '</div>';
-    const trend = section('Günlük trend', 'Kurulum kohortu filtresine göre, gözlem sonu ' + shortDate(S.OBS_END) + '.2026.',
+    const trend = section('Daily trend', 'By the install cohort filter; observation ends ' + shortDate(S.OBS_END) + '/2026.',
       chips + lineChart({ categories: g.all.days.map(shortDate), series: series(g, trendDef[2]), fmt: trendDef[3] }),
       legend(g.names));
     const days = [];
     for (let i = 0; i <= 30; i++) days.push('D' + i);
-    const retention = section('Retention eğrisi', 'Kurulumdan N gün sonra aktif olan oyuncu payı. Payda: o günü gözlemlenebilen kurulumlar.',
+    const retention = section('Retention curve', 'Share of players active N days after install. Denominator: installs that can be observed on that day.',
       lineChart({ categories: days, series: series(g, (m) => m.retention), pct: true, max: 1 }), legend(g.names));
-    const cohort = section('Günlük cohort retention', 'Satır: kurulum günü · Hücre: o gün kurulanların N. gün aktif olma oranı. Renk her sütunda cohort’ları birbirine göre sıralar.',
-      cohortTables(g), '<div class="heat-legend"><span>Düşük</span><i></i><span>Yüksek</span></div>');
-    return kpis + trend + retention + cohort;
+    const cohort = section('Daily cohort retention', 'Row: install day · Cell: share of that day’s installs active on day N. Color ranks the cohorts against each other within each column.',
+      cohortTables(g), '<div class="heat-legend"><span>Low</span><i></i><span>High</span></div>');
+    const sessions = section('Sessions', 'One session per Firebase session_start (ga_session_id). Length: active time in the session; levels: level_start events in it, retries included.',
+      '<div class="kpis">'
+        + kpi(g, 'Session time · P50', (m) => m.sessionP50, F.min, (m) => 'Average ' + F.min(m.sessionAvg) + ' · ' + F.int(m.sessionN) + ' sessions')
+        + kpi(g, 'Session time · P90', (m) => m.sessionP90, F.min, 'Longest tenth of sessions')
+        + kpi(g, 'Sessions per DAU', (m) => m.sessionsPerDau, F.dec2, 'Sessions / active days')
+        + kpi(g, 'Sessions without a level', (m) => m.levelsDist[0], F.pct, 'Only Daily, Treasure or the shop')
+        + '</div>'
+        + barChart({ categories: LEVELS_PER_SESSION.map((x) => x[2]), series: series(g, (m) => m.levelsDist), pct: true, fmt: F.dec, tipLabel: (i) => LEVELS_PER_SESSION[i][2] + ' levels in a session' }),
+      legend(g.names));
+    return kpis + sessions + trend + retention + cohort;
   }
 
   // Shading is relative within each column across every visible cohort (both groups when comparing),
@@ -1834,26 +1951,32 @@ td .low { color: var(--muted); font-size: 11px; }
       const bg = 'color-mix(in srgb, var(--heat-hi) ' + Math.round(t * 100) + '%, var(--heat-lo))';
       return '<td style="background:' + bg + ';color:' + (t > 0.55 ? 'var(--heat-text-hi)' : 'var(--text)') + '">' + F.pct(v) + '</td>';
     };
-    const head = '<tr><th>Kurulum günü</th><th>Kurulum</th>' + COHORT_DAYS.map((n) => '<th>D' + n + '</th>').join('') + '</tr>';
+    const head = '<tr><th>Install day</th><th>Installs</th>' + COHORT_DAYS.map((n) => '<th>D' + n + '</th>').join('') + '</tr>';
     return g.ms.map((m, gi) => {
-      const total = '<tr class="total"><td>Tümü</td><td>' + F.int(sum(m.cohorts, (c) => c.n)) + '</td>' + m.cohortTotal.map((v) => '<td>' + F.pct(v) + '</td>').join('') + '</tr>';
-      const rows = m.cohorts.map((c) => '<tr><td>' + shortDate(c.day) + '.2026</td><td>' + F.int(c.n) + '</td>' + c.ret.map((v, i) => (c.n ? heat(v, i) : '<td class="empty"></td>')).join('') + '</tr>').join('');
+      const total = '<tr class="total"><td>All</td><td>' + F.int(sum(m.cohorts, (c) => c.n)) + '</td>' + m.cohortTotal.map((v) => '<td>' + F.pct(v) + '</td>').join('') + '</tr>';
+      const rows = m.cohorts.map((c) => '<tr><td>' + shortDate(c.day) + '/2026</td><td>' + F.int(c.n) + '</td>' + c.ret.map((v, i) => (c.n ? heat(v, i) : '<td class="empty"></td>')).join('') + '</tr>').join('');
       const label = state.compare ? '<h3 class="group-title"><i class="dot ' + DOTS[gi] + '"></i>' + g.names[gi] + '</h3>' : '';
       return label + '<div class="table-wrap cohort"><table><thead>' + head + '</thead><tbody>' + total + rows + '</tbody></table></div>';
     }).join('');
   }
 
   // ---------- 02 Level ----------
+  // [key, label, is a rate, follows the percentile filter]
   const LEVEL_METRICS = [
-    ['reach', 'Ulaşma · kurulumların payı', true],
-    ['pass', 'Geçme oranı', true],
-    ['first', 'İlk denemede geçme', true],
-    ['retry', 'Retry yapan oyuncu', true],
-    ['churn7', '7 gün geri dönmeme', true],
-    ['assist', 'Yardım kullanan oyuncu', true],
-    ['minsQ', 'Geçene kadar aktif süre (dk)', false],
-    ['triesQ', 'Geçene kadar deneme', false],
+    ['reach', 'Reach · share of installs', true],
+    ['pass', 'Pass rate', true],
+    ['first', 'First-try pass', true],
+    ['firstFail', 'First-try fail rate', true],
+    ['retry', 'Players who retried', true],
+    ['churn7', '7-day no return', true],
+    ['assist', 'Players using help', true],
+    ['failProg', 'Fail at objective % · P50', true],
+    ['minsQ', 'Time to pass (min)', false, true],
+    ['triesQ', 'Attempts to pass', false, true],
+    ['dealsPass', 'Deals to pass (avg)', false],
+    ['specials', 'Specials dealt per attempt', false],
   ];
+  const specialCount = (r) => S.FEATURES.reduce((n, [key]) => n + r.specials[key], 0);
   const pctQ = () => +state.f.pct / 100;
   const pctLabel = () => 'P' + state.f.pct;
 
@@ -1863,6 +1986,7 @@ td .low { color: var(--muted); font-size: 11px; }
     const payer = recs.filter((r) => r.payer);
     const mature = recs.filter((r) => r.mature);
     const failers = recs.filter((r) => r.fails > 0);
+    const failPoints = recs.flatMap((r) => r.failProg);
     return {
       starters: recs.length,
       reach: ratio(recs.length, nPlayers),
@@ -1883,6 +2007,19 @@ td .low { color: var(--muted); font-size: 11px; }
       churn7: ratio(mature.filter((r) => r.churn7).length, mature.length),
       get2x: ratio(won.filter((r) => r.get2x).length, won.length),
       failSeen: ratio(failers.length, recs.length),
+      // First attempt not passed: failed, restarted or abandoned (1 − first-try pass).
+      firstFail: recs.length ? 1 - won.filter((r) => r.attempts === 1).length / recs.length : null,
+      // level_fail.goal_progress_pct: P50 and four quarter bands, every fail screen counts.
+      failProg: ok(quantile(failPoints, 0.5)) ? quantile(failPoints, 0.5) / 100 : null,
+      failBands: [0, 25, 50, 75].map((lo) => ratio(failPoints.filter((v) => v >= lo && (v < lo + 25 || lo === 75)).length, failPoints.length)),
+      failPoints: failPoints.length,
+      // `deal` events: all attempts until the pass, and special groups per attempt.
+      dealsPass: ratio(sum(won, (r) => r.deals), won.length),
+      specials: ratio(sum(recs, specialCount), sum(recs, (r) => r.attempts)),
+      byFeature: Object.fromEntries(S.FEATURES.map(([key]) => [key, {
+        perAttempt: ratio(sum(recs, (r) => r.specials[key]), sum(recs, (r) => r.attempts)),
+        toPass: ratio(sum(won, (r) => r.specials[key]), won.length),
+      }])),
       failers,
       recs,
     };
@@ -1898,7 +2035,15 @@ td .low { color: var(--muted); font-size: 11px; }
     for (const lv in byLevel) per[lv] = levelStats(byLevel[lv], ds.players.length);
     const total = levelStats(recs, ds.players.length);
     total.unique = new Set(recs.map((r) => r.p)).size;
-    return { per, total, byLevel };
+    // The first level's change compares with the level just below the range.
+    const below = f.lvFrom > 1 ? levelStats(ds.levels.filter((r) => r.level === f.lvFrom - 1 && levelPass(r, f, true)), ds.players.length) : null;
+    const delta = {};
+    for (let lv = f.lvFrom; lv <= f.lvTo; lv++) {
+      const prev = lv === f.lvFrom ? below : per[lv - 1];
+      delta[lv] = prev && ok(prev.firstFail) && ok(per[lv].firstFail) ? per[lv].firstFail - prev.firstFail : null;
+    }
+    const sessions = ds.players.flatMap((p) => p.sessions);
+    return { per, total, byLevel, delta, levelsPerSession: ratio(sum(sessions, (x) => x.levels), sessions.length) };
   }
 
   function renderLevel() {
@@ -1906,45 +2051,65 @@ td .low { color: var(--muted); font-size: 11px; }
     const f = state.f;
     const t = (m) => m.total;
     const kpis = '<div class="kpis">'
-      + kpi(g, 'Başlayan oyuncu', (m) => m.total.unique, F.int, 'Seçili levellerde tekil oyuncu')
-      + kpi(g, 'Geçme oranı', (m) => t(m).pass, F.pct, 'Geçilen / başlanan oyuncu–level')
-      + kpi(g, 'İlk denemede geçme', (m) => t(m).first, F.pct, 'Tek denemede geçen / başlanan')
-      + kpi(g, 'Geçene kadar süre', (m) => t(m).minsQ, F.min, (m) => pctLabel() + ' · deneme ' + pctLabel() + ': ' + F.int(m.total.triesQ))
-      + kpi(g, '7 gün geri dönmeme', (m) => t(m).churn7, F.pct, 'Level’dan sonra 7 gün dönmeyen')
-      + kpi(g, 'Yarıda bırakma', (m) => t(m).abandon, F.pct, 'Oturumu level ortasında biten')
-      + kpi(g, 'İlk ödeme', (m) => t(m).firstPay, F.pct, (m) => F.int(m.total.firstPayN[0]) + ' / ' + F.int(m.total.firstPayN[1]) + ' non-payer giriş')
-      + kpi(g, 'Tekrar ödeme', (m) => t(m).repeatPay, F.pct, (m) => F.int(m.total.repeatPayN[0]) + ' / ' + F.int(m.total.repeatPayN[1]) + ' payer giriş')
+      + kpi(g, 'Players started', (m) => m.total.unique, F.int, 'Unique players in the selected levels')
+      + kpi(g, 'Pass rate', (m) => t(m).pass, F.pct, 'Passed / started player-levels')
+      + kpi(g, 'First-try pass', (m) => t(m).first, F.pct, 'Passed in one attempt / started')
+      + kpi(g, 'Time to pass', (m) => t(m).minsQ, F.min, (m) => pctLabel() + ' · attempts ' + pctLabel() + ': ' + F.int(m.total.triesQ))
+      + kpi(g, '7-day no return', (m) => t(m).churn7, F.pct, 'No return within 7 days after the level')
+      + kpi(g, 'Abandoned mid-level', (m) => t(m).abandon, F.pct, 'Session ended mid-level')
+      + kpi(g, 'First payment', (m) => t(m).firstPay, F.pct, (m) => F.int(m.total.firstPayN[0]) + ' / ' + F.int(m.total.firstPayN[1]) + ' non-payer entries')
+      + kpi(g, 'Repeat payment', (m) => t(m).repeatPay, F.pct, (m) => F.int(m.total.repeatPayN[0]) + ' / ' + F.int(m.total.repeatPayN[1]) + ' payer entries')
+      + kpi(g, 'Fail at objective', (m) => t(m).failProg, F.pct0, 'P50 · goal completed when the fail screen opens')
+      + kpi(g, 'Deals to pass', (m) => t(m).dealsPass, F.dec, 'Average deals until the pass · all attempts')
+      + kpi(g, 'Specials dealt', (m) => t(m).specials, F.dec2, 'Special groups per attempt · Wild, Stone, Mystery, Tied, Frozen, Box')
+      + kpi(g, 'Levels per session', (m) => m.levelsPerSession, F.dec2, 'level_start per session · all levels')
       + '</div>';
     const lvKeys = [];
     for (let lv = f.lvFrom; lv <= f.lvTo; lv++) lvKeys.push(lv);
     const metric = LEVEL_METRICS.find((x) => x[0] === state.levelMetric) || LEVEL_METRICS[0];
-    const chart = section('Level boyunca', 'Bir çubuğa tıkla: level detayı açılır.',
+    const chart = section('Across levels', 'Click a bar to open the level detail.',
       barChart({
         categories: lvKeys.map((lv) => String(lv)),
         keys: lvKeys,
         series: series(g, (m) => lvKeys.map((lv) => m.per[lv][metric[0]])),
         pct: metric[2],
-        fmt: F.dec,
+        fmt: metric[0] === 'specials' ? F.dec2 : F.dec,
         click: 'level',
         tipLabel: (i) => 'Level ' + lvKeys[i],
       }),
-      '<div class="toolbar">' + legend(g.names) + select('levelMetric', metric[0], LEVEL_METRICS.map((x) => [x[0], x[1] + (x[2] ? '' : ' · ' + pctLabel())])) + '</div>');
-    const tbl = section('Level karşılaştırması', 'Satıra tıkla: retry, fail hunisi ve yardım kullanımı.',
+      '<div class="toolbar">' + legend(g.names) + select('levelMetric', metric[0], LEVEL_METRICS.map((x) => [x[0], x[1] + (x[3] ? ' · ' + pctLabel() : '')])) + '</div>');
+    const tbl = section('Level comparison', 'Click a row: retries, fail funnel, deals and help usage.',
       table(g, [
-        { h: 'Level', raw: (lv) => '<a>Level ' + lv + '</a>' + (g.all.per[lv].starters < 50 ? ' <span class="low">az örnek</span>' : '') },
-        { h: 'Yeni', raw: (lv) => (S.NEW_AT[lv] ? '<span class="tag">' + S.NEW_AT[lv] + '</span>' : '') },
-        { h: 'Başlayan', get: (m, lv) => m.per[lv].starters, f: F.int },
-        { h: 'Geçme', get: (m, lv) => m.per[lv].pass, f: F.pct },
-        { h: 'İlk deneme', get: (m, lv) => m.per[lv].first, f: F.pct },
+        { h: 'Level', raw: (lv) => '<a>Level ' + lv + '</a>' + (g.all.per[lv].starters < 50 ? ' <span class="low">low sample</span>' : '') },
+        { h: 'New', raw: (lv) => (S.NEW_AT[lv] ? '<span class="tag">' + S.NEW_AT[lv] + '</span>' : '') },
+        { h: 'Started', get: (m, lv) => m.per[lv].starters, f: F.int },
+        { h: 'Pass', get: (m, lv) => m.per[lv].pass, f: F.pct },
+        { h: 'First try', get: (m, lv) => m.per[lv].first, f: F.pct },
         { h: 'Retry', get: (m, lv) => m.per[lv].retry, f: F.pct },
-        { h: 'Süre dk · ' + pctLabel(), get: (m, lv) => m.per[lv].minsQ, f: F.dec },
-        { h: 'Deneme · ' + pctLabel(), get: (m, lv) => m.per[lv].triesQ, f: F.int },
-        { h: 'Yardım', get: (m, lv) => m.per[lv].assist, f: F.pct },
-        { h: 'Devam', get: (m, lv) => m.per[lv].cont, f: F.pct },
-        { h: 'İlk ödeme', get: (m, lv) => m.per[lv].firstPay, f: F.pct },
-        { h: '7g dönmeme', get: (m, lv) => m.per[lv].churn7, f: F.pct },
-      ], lvKeys, { click: 'level', foot: 'Süre ve deneme: level’ı geçenler, seçili persentil (' + pctLabel() + ') · Yardım: booster, Extra, altınla slot, reklam kartı veya devam · Devam: fail ekranında altın, reklam ya da fail paketi · 50’den az oyuncuda “az örnek”.' }));
-    return kpis + chart + tbl;
+        { h: 'Time min · ' + pctLabel(), get: (m, lv) => m.per[lv].minsQ, f: F.dec },
+        { h: 'Attempts · ' + pctLabel(), get: (m, lv) => m.per[lv].triesQ, f: F.int },
+        { h: 'Fail at objective · P50', get: (m, lv) => m.per[lv].failProg, f: F.pct0 },
+        { h: 'Deals to pass', get: (m, lv) => m.per[lv].dealsPass, f: F.dec },
+        { h: 'Specials / attempt', get: (m, lv) => m.per[lv].specials, f: F.dec2 },
+        { h: 'Help', get: (m, lv) => m.per[lv].assist, f: F.pct },
+        { h: 'Continue', get: (m, lv) => m.per[lv].cont, f: F.pct },
+        { h: 'First payment', get: (m, lv) => m.per[lv].firstPay, f: F.pct },
+        { h: '7d no return', get: (m, lv) => m.per[lv].churn7, f: F.pct },
+      ], lvKeys, { click: 'level', foot: 'Time and attempts: players who passed, selected percentile (' + pctLabel() + '); time runs from level_start to the event that ends each attempt, summed over attempts · Fail at objective: P50 share of the level goals completed when the fail screen opens (level_fail.goal_progress_pct) · Deals to pass: average `deal` events until the pass, all attempts · Specials: special groups per attempt from `deal` (detail per feature in the level drawer) · Help: booster, Extra, slot with coins, ad card or continue · Continue: coins, ad or Play On pack on the fail screen · “low sample” under 50 players.' }));
+    // Voodoo-style difficulty check: the first-try fail rate per level and its change from the previous level.
+    const firstFail = section('First-try fail rate', 'Share of players whose first attempt at the level did not pass (failed, restarted or abandoned). The lower chart is the change from the previous level: a tall bar is a difficulty jump.',
+      barChart({ categories: lvKeys.map(String), keys: lvKeys, series: series(g, (m) => lvKeys.map((lv) => m.per[lv].firstFail)), pct: true, fmt: F.dec, click: 'level', tipLabel: (i) => 'Level ' + lvKeys[i] })
+        + '<p class="note">Change from the previous level, percentage points</p>'
+        + deltaChart({ categories: lvKeys.map(String), keys: lvKeys, series: series(g, (m) => lvKeys.map((lv) => m.delta[lv])), click: 'level', tipLabel: (i) => 'Level ' + lvKeys[i] + ' vs ' + (lvKeys[i] - 1) })
+        + table(g, [
+          { h: 'Level', raw: (lv) => '<a>Level ' + lv + '</a>' + (g.all.per[lv].starters < 50 ? ' <span class="low">low sample</span>' : '') },
+          { h: 'New', raw: (lv) => (S.NEW_AT[lv] ? '<span class="tag">' + S.NEW_AT[lv] + '</span>' : '') },
+          { h: 'Started', get: (m, lv) => m.per[lv].starters, f: F.int },
+          { h: 'First-try fail', get: (m, lv) => m.per[lv].firstFail, f: F.pct },
+          { h: 'Δ vs previous level', get: (m, lv) => m.delta[lv], f: F.pp },
+        ], lvKeys, { click: 'level', foot: 'Δ: change in percentage points from the previous level (level ' + (f.lvFrom - 1 || '—') + ' for the first row). Positive: harder than the level before.' }),
+      legend(g.names));
+    return kpis + chart + tbl + firstFail;
   }
 
   function renderLevelDrawer(lv) {
@@ -1958,10 +2123,10 @@ td .low { color: var(--muted); font-size: 11px; }
       ['burn', 'Burn', (r) => r.burn],
       ['move', 'Move', (r) => r.move],
       ['fan', 'Fan', (r) => r.fan],
-      ['extra', 'Extra · süreli slot', (r) => r.extra],
-      ['slot', 'Altınla slot', (r) => r.slot],
-      ['adCard', 'Reklam kartı', (r) => r.adCard],
-      ['cont', 'Devam (altın · reklam · paket)', (r) => r.contCoin + r.contAd + r.failPack],
+      ['extra', 'Extra · timed slot', (r) => r.extra],
+      ['slot', 'Slot with coins', (r) => r.slot],
+      ['adCard', 'Ad card', (r) => r.adCard],
+      ['cont', 'Continue (coins · ad · pack)', (r) => r.contCoin + r.contAd + r.failPack],
     ].filter((h) => !gate[h[0]] || lv >= gate[h[0]]);
     const helpStat = (m, i) => {
       const fn = helps[i][2];
@@ -1975,47 +2140,61 @@ td .low { color: var(--muted); font-size: 11px; }
       };
     };
     const failRow = (name, fn) => ({ name, get: (m) => ratio(m.failers.filter(fn).length, m.failers.length) });
-    let html = '<div class="drawer-head"><div><small>LEVEL İNCELEMESİ</small><h2>Level ' + lv + '</h2><p>'
-      + F.int(a.starters) + ' başlayan oyuncu' + (S.NEW_AT[lv] ? ' · Yeni: ' + S.NEW_AT[lv] : '') + ' · 7 günlük takip</p></div>'
-      + '<button class="btn" data-action="close">Kapat ×</button></div>';
+    let html = '<div class="drawer-head"><div><small>LEVEL DETAIL</small><h2>Level ' + lv + '</h2><p>'
+      + F.int(a.starters) + ' players started' + (S.NEW_AT[lv] ? ' · New: ' + S.NEW_AT[lv] : '') + ' · 7-day follow-up</p></div>'
+      + '<button class="btn" data-action="close">Close ×</button></div>';
     html += '<div class="mini-kpis">'
-      + kpi(g, 'Geçme oranı', (m) => m.pass, F.pct, (m) => 'İlk denemede ' + F.pct(m.first), true)
-      + kpi(g, 'Geçene kadar aktif süre', (m) => m.minsQ, F.min, (m) => pctLabel() + ' · deneme ' + pctLabel() + ': ' + F.int(m.triesQ), true)
-      + kpi(g, 'Retry yapan oyuncu', (m) => m.retry, F.pct, (m) => F.int(m.retries) + ' retry · ' + F.int(m.restarts) + ' Settings restart', true)
-      + kpi(g, '7 gün geri dönmeme', (m) => m.churn7, F.pct, 'Bu level’da kalıp dönmeyen', true)
+      + kpi(g, 'Pass rate', (m) => m.pass, F.pct, (m) => 'First try ' + F.pct(m.first), true)
+      + kpi(g, 'Time to pass', (m) => m.minsQ, F.min, (m) => pctLabel() + ' · attempts ' + pctLabel() + ': ' + F.int(m.triesQ), true)
+      + kpi(g, 'Players who retried', (m) => m.retry, F.pct, (m) => F.int(m.retries) + ' retries · ' + F.int(m.restarts) + ' Settings restarts', true)
+      + kpi(g, '7-day no return', (m) => m.churn7, F.pct, 'Stopped on this level and did not return', true)
+      + kpi(g, 'Fail at objective', (m) => m.failProg, F.pct0, (m) => 'P50 · ' + F.int(m.failPoints) + ' fail screens', true)
+      + kpi(g, 'Deals to pass', (m) => m.dealsPass, F.dec, 'Average deals until the pass', true)
       + '</div>';
-    html += '<h3>Fail hunisi</h3>';
+    html += '<h3>Fail point · objective completed</h3>';
+    html += barRows(g, ['0–25%', '25–50%', '50–75%', '75–100%'].map((name, i) => ({ name, get: (m) => m.failBands[i] })), { h1: 'Goal completed at fail', h2: 'Fail screens' });
+    html += '<p class="note">level_fail.goal_progress_pct: share of the level goals completed when the fail screen opens.</p>';
+    html += '<h3>Fail funnel</h3>';
     html += barRows(g, [
-      { name: 'Fail ekranını gören', get: (m) => m.failSeen },
-      failRow('Devam · altın', (r) => r.contCoin > 0),
-      failRow('Devam · reklam', (r) => r.contAd > 0),
-      failRow('Fail paketi · satın alma', (r) => r.failPack > 0),
-      failRow('Kapattı · −1 can', (r) => r.failClose > 0),
-      failRow('Sonunda geçti', (r) => r.won),
-    ], { h1: 'Adım', h2: 'Oran' });
-    html += '<p class="note">İlk satır başlayanlara, diğerleri fail ekranını görenlere oranlanır.</p>';
-    html += '<h3>Yardım kullanımı</h3>';
+      { name: 'Saw the fail screen', get: (m) => m.failSeen },
+      failRow('Continue · coins', (r) => r.contCoin > 0),
+      failRow('Continue · ad', (r) => r.contAd > 0),
+      failRow('Play on CVR', (r) => r.failPack > 0),
+      failRow('Closed · −1 life', (r) => r.failClose > 0),
+      failRow('Eventually passed', (r) => r.won),
+    ], { h1: 'Step', h2: 'Rate' });
+    html += '<p class="note">The first row is over players who started, the others over players who saw the fail screen.</p>';
+    html += '<h3>Help usage</h3>';
     html += table(g, [
-      { h: 'Yardım', raw: (i) => helps[i][1] },
-      { h: 'Kullanan', get: (m, i) => helpStat(m, i).share, f: F.pct },
-      { h: 'Adet', get: (m, i) => helpStat(m, i).uses, f: F.int },
-      { h: 'Kullananda geçme', get: (m, i) => helpStat(m, i).passUsers, f: F.pct },
-      { h: 'Kullanmayanda', get: (m, i) => helpStat(m, i).passNon, f: F.pct },
+      { h: 'Help', raw: (i) => helps[i][1] },
+      { h: 'Users', get: (m, i) => helpStat(m, i).share, f: F.pct },
+      { h: 'Uses', get: (m, i) => helpStat(m, i).uses, f: F.int },
+      { h: 'Pass with help', get: (m, i) => helpStat(m, i).passUsers, f: F.pct },
+      { h: 'Pass without', get: (m, i) => helpStat(m, i).passNon, f: F.pct },
     ], helps.map((h, i) => i));
-    html += '<h3>Ödeme ve level sonu</h3><div class="mini-kpis">'
-      + kpi(g, 'İlk ödeme', (m) => m.firstPay, F.pct, (m) => F.int(m.firstPayN[0]) + ' / ' + F.int(m.firstPayN[1]) + ' non-payer', true)
-      + kpi(g, 'Tekrar ödeme', (m) => m.repeatPay, F.pct, (m) => F.int(m.repeatPayN[0]) + ' / ' + F.int(m.repeatPayN[1]) + ' payer', true)
-      + kpi(g, 'Get2X izleyen', (m) => m.get2x, F.pct, 'Geçenler içinde', true)
-      + kpi(g, 'Yarıda bırakma', (m) => m.abandon, F.pct, 'Oturumu level ortasında biten', true)
+    const features = S.FEATURES.filter((x) => lv >= x[2]);
+    html += '<h3>Specials dealt</h3>';
+    html += features.length
+      ? table(g, [
+        { h: 'Feature', raw: (i) => features[i][1] + ' <span class="tag">L' + features[i][2] + '+</span>' },
+        { h: 'Groups / attempt', get: (m, i) => m.byFeature[features[i][0]].perAttempt, f: F.dec2 },
+        { h: 'Groups until the pass', get: (m, i) => m.byFeature[features[i][0]].toPass, f: F.dec2 },
+      ], features.map((x, i) => i), { foot: 'From the `deal` event: Stone, Tied, Frozen and Box count one group per group; Wild and Mystery one per receiving slot.' })
+      : '<p class="note">No special-card feature is unlocked at this level.</p>';
+    html += '<h3>Payment and level end</h3><div class="mini-kpis">'
+      + kpi(g, 'First payment', (m) => m.firstPay, F.pct, (m) => F.int(m.firstPayN[0]) + ' / ' + F.int(m.firstPayN[1]) + ' non-payer', true)
+      + kpi(g, 'Repeat payment', (m) => m.repeatPay, F.pct, (m) => F.int(m.repeatPayN[0]) + ' / ' + F.int(m.repeatPayN[1]) + ' payer', true)
+      + kpi(g, 'Watched Get2X', (m) => m.get2x, F.pct, 'Among players who passed', true)
+      + kpi(g, 'Abandoned mid-level', (m) => m.abandon, F.pct, 'Session ended mid-level', true)
       + '</div>';
     return html;
   }
 
   // ---------- 03 Ads ----------
   const INTER_ROWS = [
-    ['l4', 'Level 4 sonrası · özel ilk reklam'],
-    ['deal', 'Deal tıklaması'],
-    ['next', 'Next · level geçişi'],
+    ['l4', 'After Level 4 · special first ad'],
+    ['deal', 'Deal tap'],
+    ['next', 'Next · level transition'],
   ];
   function computeAds(ds) {
     const place = {};
@@ -2077,54 +2256,54 @@ td .low { color: var(--muted); font-size: 11px; }
   function renderAds() {
     const g = groupsFor(computeAds);
     const kpis = '<div class="kpis">'
-      + kpi(g, 'Reklam izleyen oyuncu', (m) => m.watchers, F.pct, 'En az 1 rewarded veya interstitial')
-      + kpi(g, 'Rewarded / DAU', (m) => m.rewardedPerDau, F.dec2, 'Ödül verilen izleme · aktif gün başına')
-      + kpi(g, 'Interstitial / DAU', (m) => m.interPerDau, F.dec2, 'Gösterim · aktif gün başına')
-      + kpi(g, 'Reklam geliri', (m) => m.adRev, F.usd, (m) => 'ARPDAU ' + F.usd3(m.adArpdau))
+      + kpi(g, 'Players watching ads', (m) => m.watchers, F.pct, 'At least 1 rewarded or interstitial')
+      + kpi(g, 'Rewarded / DAU', (m) => m.rewardedPerDau, F.dec2, 'Rewarded views · per active day')
+      + kpi(g, 'Interstitial / DAU', (m) => m.interPerDau, F.dec2, 'Impressions · per active day')
+      + kpi(g, 'Ad revenue', (m) => m.adRev, F.usd, (m) => 'ARPDAU ' + F.usd3(m.adArpdau))
       + '</div>';
     const from = dayIndexOf(state.f.from);
     const days = [];
     for (let d = from; d <= S.OBS_END; d++) days.push(d);
-    const trend = section('Günlük reklam geliri', 'Rewarded + interstitial + banner.',
+    const trend = section('Daily ad revenue', 'Rewarded + interstitial + banner.',
       lineChart({ categories: days.map(shortDate), series: series(g, (m) => days.map((d) => m.daily[d] || 0)), fmt: F.usd }), legend(g.names));
     const placeKeys = S.PLACEMENTS.map((x, i) => i);
-    const rewarded = section('Rewarded yerleşimleri', 'Teklif: reklam butonunun gösterildiği an. Tamamlama: tıklayanlar içinde ödül alan.',
+    const rewarded = section('Rewarded placements', 'Offer: the moment the ad button is shown. Completion: rewarded among clicks.',
       table(g, [
-        { h: 'Yerleşim', raw: (i) => S.PLACEMENTS[i][1] + ' <span class="tag">' + S.PLACEMENTS[i][2] + '</span>' },
-        { h: 'Teklif', get: (m, i) => m.place[S.PLACEMENTS[i][0]].offered, f: F.int },
-        { h: 'Tıklama', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].clicked, m.place[S.PLACEMENTS[i][0]].offered), f: F.pct },
-        { h: 'Tamamlama', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].rewarded, m.place[S.PLACEMENTS[i][0]].clicked), f: F.pct },
-        { h: 'Yüklenemedi', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].failed, m.place[S.PLACEMENTS[i][0]].clicked), f: F.pct },
-        { h: 'İzleyen oyuncu', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].users, m.n), f: F.pct },
-        { h: 'DAU başına', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].rewarded, m.ad), f: F.dec2 },
-      ], placeKeys, { foot: 'Booster, can ve devam reklamları yalnızca altın yetmediğinde gösterilir.' }));
+        { h: 'Placement', raw: (i) => S.PLACEMENTS[i][1] + ' <span class="tag">' + S.PLACEMENTS[i][2] + '</span>' },
+        { h: 'Offers', get: (m, i) => m.place[S.PLACEMENTS[i][0]].offered, f: F.int },
+        { h: 'Click', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].clicked, m.place[S.PLACEMENTS[i][0]].offered), f: F.pct },
+        { h: 'Completion', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].rewarded, m.place[S.PLACEMENTS[i][0]].clicked), f: F.pct },
+        { h: 'No fill', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].failed, m.place[S.PLACEMENTS[i][0]].clicked), f: F.pct },
+        { h: 'Players watching', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].users, m.n), f: F.pct },
+        { h: 'Per DAU', get: (m, i) => ratio(m.place[S.PLACEMENTS[i][0]].rewarded, m.ad), f: F.dec2 },
+      ], placeKeys, { foot: 'Booster, life and continue ads show only when coins are short.' }));
     const interKeys = [0, 1, 2, 3];
     const interRow = (m, i) => (i < 3 ? m.inter[INTER_ROWS[i][0]] : null);
-    const forced = section('Interstitial ve banner', 'No Ads sahiplerine gösterilmez. 60 sn içinde bırakma: reklamdan sonra oturum bitti.',
+    const forced = section('Interstitial and banner', 'Not shown to No Ads owners. Quit within 60 s: the session ended after the ad.',
       table(g, [
-        { h: 'Tür · tetikleyici', raw: (i) => (i < 3 ? INTER_ROWS[i][1] : 'Banner · L4+') },
-        { h: 'Gösterim', get: (m, i) => (i < 3 ? interRow(m, i).shown : m.banner), f: F.int },
-        { h: 'DAU başına', get: (m, i) => ratio(i < 3 ? interRow(m, i).shown : m.banner, m.ad), f: F.dec2 },
-        { h: 'Yüklenemedi', get: (m, i) => (i < 3 ? ratio(interRow(m, i).failed, interRow(m, i).shown + interRow(m, i).failed) : null), f: F.pct },
-        { h: '60 sn içinde bırakma', get: (m, i) => (i < 3 ? ratio(interRow(m, i).quit, interRow(m, i).shown) : null), f: F.pct },
+        { h: 'Type · trigger', raw: (i) => (i < 3 ? INTER_ROWS[i][1] : 'Banner · L4+') },
+        { h: 'Impressions', get: (m, i) => (i < 3 ? interRow(m, i).shown : m.banner), f: F.int },
+        { h: 'Per DAU', get: (m, i) => ratio(i < 3 ? interRow(m, i).shown : m.banner, m.ad), f: F.dec2 },
+        { h: 'No fill', get: (m, i) => (i < 3 ? ratio(interRow(m, i).failed, interRow(m, i).shown + interRow(m, i).failed) : null), f: F.pct },
+        { h: 'Quit within 60 s', get: (m, i) => (i < 3 ? ratio(interRow(m, i).quit, interRow(m, i).shown) : null), f: F.pct },
       ], interKeys));
     return kpis + trend + rewarded + forced;
   }
 
   // ---------- 04 Market & Offers ----------
   const OFFERS = [
-    ['welcome', 'Welcome', 'L3’e ulaşan', (p) => p.maxWon >= 2],
-    ['starter', 'Starter (4 kademe)', 'L6’ya ulaşan', (p) => p.maxWon >= 5],
-    ['noads', 'No Ads', 'Interstitial gören', (p) => Object.values(p.inter).some((a) => a[0] > 0)],
-    ['fail_pack', 'Fail paketi', 'Fail ekranı gören', (p) => !!p.offers.fail_pack],
+    ['welcome', 'Welcome', 'Reached L3', (p) => p.maxWon >= 2],
+    ['starter', 'Starter (4 tiers)', 'Reached L6', (p) => p.maxWon >= 5],
+    ['noads', 'No Ads', 'Saw an interstitial', (p) => Object.values(p.inter).some((a) => a[0] > 0)],
+    ['fail_pack', 'Play On pack', 'Saw the fail screen', (p) => !!p.offers.fail_pack],
   ];
   const MARKET_SOURCES = [
-    ['hud', 'HUD · Market butonu'],
-    ['booster', 'Booster · altın yetmedi'],
-    ['extra', 'Extra · altın yetmedi'],
-    ['slot', 'Slot · altın yetmedi'],
-    ['fail', 'Fail ekranı · altın yetmedi'],
-    ['lives', 'Can penceresi'],
+    ['hud', 'HUD · Market button'],
+    ['booster', 'Booster · coins short'],
+    ['extra', 'Extra · coins short'],
+    ['slot', 'Slot · coins short'],
+    ['fail', 'Fail screen · coins short'],
+    ['lives', 'Lives panel'],
   ];
   function computeMarket(ds) {
     const n = ds.players.length;
@@ -2200,66 +2379,66 @@ td .low { color: var(--muted); font-size: 11px; }
   function renderMarket() {
     const g = groupsFor(computeMarket);
     const kpis = '<div class="kpis">'
-      + kpi(g, 'IAP geliri', (m) => m.revenue, F.usd, (m) => F.int(m.orders) + ' satın alma')
-      + kpi(g, 'Payer oranı', (m) => m.payer, F.pct, (m) => F.int(m.payers) + ' ödeme yapan oyuncu')
-      + kpi(g, 'ARPPU', (m) => m.arppu, F.usd, 'Gelir / ödeme yapan')
-      + kpi(g, 'İlk 7 günde ödeme', (m) => m.first7, F.pct, '7 günü dolmuş kurulumlar')
+      + kpi(g, 'IAP revenue', (m) => m.revenue, F.usd, (m) => F.int(m.orders) + ' purchases')
+      + kpi(g, 'Payer rate', (m) => m.payer, F.pct, (m) => F.int(m.payers) + ' paying players')
+      + kpi(g, 'ARPPU', (m) => m.arppu, F.usd, 'Revenue / payer')
+      + kpi(g, 'Paid in the first 7 days', (m) => m.first7, F.pct, 'Installs with 7 full days')
       + '</div>';
     const offerKeys = [0, 1, 2, 3];
-    const offers = section('Teklifler', 'Uygun oyuncu → teklifi gören → tıklama → satın alma. Popup ve HUD ikonu birlikte sayılır.',
+    const offers = section('Offers', 'Eligible player → saw the offer → click → purchase. Popup and HUD icon count together.',
       table(g, [
-        { h: 'Teklif', raw: (i) => OFFERS[i][1] },
-        { h: 'Uygunluk', raw: (i) => '<span class="tag">' + OFFERS[i][2] + '</span>' },
-        { h: 'Uygun oyuncu', get: (m, i) => m.offers[OFFERS[i][0]].eligible, f: F.int },
-        { h: 'Gören', get: (m, i) => m.offers[OFFERS[i][0]].shownShare, f: F.pct },
-        { h: 'Gösterim', get: (m, i) => m.offers[OFFERS[i][0]].shown, f: F.int },
-        { h: 'Tıklama', get: (m, i) => m.offers[OFFERS[i][0]].ctr, f: F.pct },
-        { h: 'Satın alan', get: (m, i) => m.offers[OFFERS[i][0]].conv, f: F.pct },
-        { h: 'Gelir', get: (m, i) => m.offers[OFFERS[i][0]].revenue, f: F.usd },
-      ], offerKeys, { foot: 'Satın alan: teklifi gören oyuncular içinde. Daily “Tüm günler” Daily sekmesinde.' }));
+        { h: 'Offer', raw: (i) => OFFERS[i][1] },
+        { h: 'Eligibility', raw: (i) => '<span class="tag">' + OFFERS[i][2] + '</span>' },
+        { h: 'Eligible players', get: (m, i) => m.offers[OFFERS[i][0]].eligible, f: F.int },
+        { h: 'Saw', get: (m, i) => m.offers[OFFERS[i][0]].shownShare, f: F.pct },
+        { h: 'Impressions', get: (m, i) => m.offers[OFFERS[i][0]].shown, f: F.int },
+        { h: 'Click', get: (m, i) => m.offers[OFFERS[i][0]].ctr, f: F.pct },
+        { h: 'Bought', get: (m, i) => m.offers[OFFERS[i][0]].conv, f: F.pct },
+        { h: 'Revenue', get: (m, i) => m.offers[OFFERS[i][0]].revenue, f: F.usd },
+      ], offerKeys, { foot: 'Bought: among players who saw the offer. Daily “All Days” is on the Daily tab.' }));
     const v = g.all.variants;
-    const variants = section('Market paketleri · No Ads’li ve No Ads’siz',
-      'No Ads’i olmayan oyuncu paketin No Ads’li halini, No Ads sahibi aynı fiyattaki No Ads’siz halini görür. Market’i No Ads’siz açan: '
-        + F.int(v.seenWith) + ' oyuncu · No Ads sahibiyken açan: ' + F.int(v.seenWithout) + ' oyuncu. Dönüşüm: o halde Market’i açanlar içinde alan.',
+    const variants = section('Market bundles · with and without No Ads',
+      'Players without No Ads see each bundle with No Ads; No Ads owners see the same-price bundle without it. Opened the Market without No Ads: '
+        + F.int(v.seenWith) + ' players · opened as a No Ads owner: ' + F.int(v.seenWithout) + ' players. Conversion: bought among players who opened the Market in that state.',
       table(g, [
-        { h: 'Paket', raw: (id) => S.PRODUCTS[id].name.split(' · ')[0] },
-        { h: 'Fiyat', raw: (id) => '$' + nf2.format(S.PRODUCTS[id].usd) },
-        { h: 'No Ads’li · satın alma', get: (m, id) => m.variants.rows[id].withAds.orders, f: F.int },
-        { h: 'No Ads’li · dönüşüm', get: (m, id) => m.variants.rows[id].withAds.conv, f: F.pct },
-        { h: 'No Ads’li · gelir', get: (m, id) => m.variants.rows[id].withAds.revenue, f: F.usd },
-        { h: 'No Ads’siz · satın alma', get: (m, id) => m.variants.rows[id].withoutAds.orders, f: F.int },
-        { h: 'No Ads’siz · dönüşüm', get: (m, id) => m.variants.rows[id].withoutAds.conv, f: F.pct },
-        { h: 'No Ads’siz · gelir', get: (m, id) => m.variants.rows[id].withoutAds.revenue, f: F.usd },
-      ], S.MARKET_BUNDLES, { foot: 'No Ads’li paketler tek seferlik; alan oyuncu No Ads sahibi olur ve sonraki açılışlarda No Ads’siz hali görür.' }));
+        { h: 'Bundle', raw: (id) => S.PRODUCTS[id].name.split(' · ')[0] },
+        { h: 'Price', raw: (id) => '$' + nf2.format(S.PRODUCTS[id].usd) },
+        { h: 'With No Ads · purchases', get: (m, id) => m.variants.rows[id].withAds.orders, f: F.int },
+        { h: 'With No Ads · conversion', get: (m, id) => m.variants.rows[id].withAds.conv, f: F.pct },
+        { h: 'With No Ads · revenue', get: (m, id) => m.variants.rows[id].withAds.revenue, f: F.usd },
+        { h: 'Without No Ads · purchases', get: (m, id) => m.variants.rows[id].withoutAds.orders, f: F.int },
+        { h: 'Without No Ads · conversion', get: (m, id) => m.variants.rows[id].withoutAds.conv, f: F.pct },
+        { h: 'Without No Ads · revenue', get: (m, id) => m.variants.rows[id].withoutAds.revenue, f: F.usd },
+      ], S.MARKET_BUNDLES, { foot: 'Bundles with No Ads are one-time; a buyer becomes a No Ads owner and sees the version without No Ads on later opens.' }));
     const ids = Object.keys(S.PRODUCTS).sort((a, b) => g.all.products[b].revenue - g.all.products[a].revenue);
-    const products = section('Ürünler', 'Fiyatlar USD karşılığı, demo değer.',
+    const products = section('Products', 'Prices in USD, demo values.',
       table(g, [
-        { h: 'Ürün', raw: (id) => S.PRODUCTS[id].name },
-        { h: 'Grup', raw: (id) => '<span class="tag">' + S.PRODUCTS[id].group + '</span>' },
-        { h: 'No Ads', raw: (id) => (S.PRODUCTS[id].noads ? 'Var' : '—') },
-        { h: 'Fiyat', raw: (id) => '$' + nf2.format(S.PRODUCTS[id].usd) },
-        { h: 'Satın alma', get: (m, id) => m.products[id].count, f: F.int },
-        { h: 'Alıcı', get: (m, id) => m.products[id].buyers.size, f: F.int },
-        { h: 'Gelir', get: (m, id) => m.products[id].revenue, f: F.usd },
-        { h: 'Gelir payı', get: (m, id) => ratio(m.products[id].revenue, m.revenue), f: F.pct },
-        { h: 'İlk satın alma payı', get: (m, id) => ratio(m.products[id].first, m.products[id].count), f: F.pct },
+        { h: 'Product', raw: (id) => S.PRODUCTS[id].name },
+        { h: 'Group', raw: (id) => '<span class="tag">' + S.PRODUCTS[id].group + '</span>' },
+        { h: 'No Ads', raw: (id) => (S.PRODUCTS[id].noads ? 'Yes' : '—') },
+        { h: 'Price', raw: (id) => '$' + nf2.format(S.PRODUCTS[id].usd) },
+        { h: 'Purchases', get: (m, id) => m.products[id].count, f: F.int },
+        { h: 'Buyers', get: (m, id) => m.products[id].buyers.size, f: F.int },
+        { h: 'Revenue', get: (m, id) => m.products[id].revenue, f: F.usd },
+        { h: 'Revenue share', get: (m, id) => ratio(m.products[id].revenue, m.revenue), f: F.pct },
+        { h: 'First-purchase share', get: (m, id) => ratio(m.products[id].first, m.products[id].count), f: F.pct },
       ], ids));
     const srcKeys = [0, 1, 2, 3, 4, 5];
-    const sources = section('Market açılış kaynakları', 'Market’i nereden açtılar, kaçı satın aldı.',
+    const sources = section('Market entry points', 'Where players opened the Market, and how many bought.',
       table(g, [
-        { h: 'Kaynak', raw: (i) => MARKET_SOURCES[i][1] },
-        { h: 'Açılış', get: (m, i) => m.sources[MARKET_SOURCES[i][0]].opens, f: F.int },
-        { h: 'Açan oyuncu', get: (m, i) => ratio(m.sources[MARKET_SOURCES[i][0]].users, m.n), f: F.pct },
-        { h: 'Satın alma', get: (m, i) => m.sources[MARKET_SOURCES[i][0]].buys, f: F.int },
-        { h: 'Dönüşüm', get: (m, i) => ratio(m.sources[MARKET_SOURCES[i][0]].buys, m.sources[MARKET_SOURCES[i][0]].opens), f: F.pct },
+        { h: 'Source', raw: (i) => MARKET_SOURCES[i][1] },
+        { h: 'Opens', get: (m, i) => m.sources[MARKET_SOURCES[i][0]].opens, f: F.int },
+        { h: 'Players opening', get: (m, i) => ratio(m.sources[MARKET_SOURCES[i][0]].users, m.n), f: F.pct },
+        { h: 'Purchases', get: (m, i) => m.sources[MARKET_SOURCES[i][0]].buys, f: F.int },
+        { h: 'Conversion', get: (m, i) => ratio(m.sources[MARKET_SOURCES[i][0]].buys, m.sources[MARKET_SOURCES[i][0]].opens), f: F.pct },
       ], srcKeys));
     return kpis + offers + variants + products + sources;
   }
 
   // ---------- 05 Daily ----------
   const DAILY_BOARD_METRICS = [
-    ['reach', 'Oynanma oranı', 'Oynanma: Board 1’i oynayanların bu board’a ulaşma oranı.'],
-    ['done', 'Tamamlama oranı', 'Tamamlama: board’u oynayan oyunculardan bitiren (retry dahil).'],
+    ['reach', 'Play rate', 'Play rate: share of Board 1 players who reached this board.'],
+    ['done', 'Completion rate', 'Completion: players who finished the board among those who played it (retries included).'],
   ];
 
   function computeDaily(ds) {
@@ -2320,74 +2499,74 @@ td .low { color: var(--muted); font-size: 11px; }
   function renderDaily() {
     const g = groupsFor(computeDaily);
     const kpis = '<div class="kpis">'
-      + kpi(g, 'Daily’e katılım', (m) => m.reach, F.pct, (m) => 'Daily açılmış ' + F.int(m.eligible) + ' oyuncu içinde')
-      + kpi(g, 'Günlük katılım', (m) => m.dailyShare, F.pct, 'Daily açıkken aktif günlerin payı')
-      + kpi(g, 'Tamamlama', (m) => m.done, F.pct, (m) => F.int(m.plays) + ' oynanış')
-      + kpi(g, 'Reklamla giriş', (m) => m.adEntry, F.pct, (m) => 'Geçmiş gün veya retry · Tüm günler: ' + F.pct(m.allDays))
+      + kpi(g, 'Daily participation', (m) => m.reach, F.pct, (m) => 'Among ' + F.int(m.eligible) + ' players with Daily unlocked')
+      + kpi(g, 'Daily share of days', (m) => m.dailyShare, F.pct, 'Share of active days while Daily is unlocked')
+      + kpi(g, 'Completion', (m) => m.done, F.pct, (m) => F.int(m.plays) + ' plays')
+      + kpi(g, 'Entry by ad', (m) => m.adEntry, F.pct, (m) => 'Past day or retry · All Days: ' + F.pct(m.allDays))
       + '</div>';
     const keys = [];
     for (let b = 0; b < S.DAILY_BOARDS; b++) keys.push(b);
     const metric = DAILY_BOARD_METRICS.find((x) => x[0] === state.dailyMetric) || DAILY_BOARD_METRICS[0];
     const chips = '<div class="chips">' + DAILY_BOARD_METRICS.map((x) => '<button class="chip' + (x[0] === metric[0] ? ' on' : '') + '" data-action="dailyMetric" data-key="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>';
-    const chart = section('Board’lar · oynanma ve tamamlama',
-      'İlk ' + S.DAILY_BOARDS + ' Daily gününde board’lar takvim tarihinden bağımsız, her oyuncuya aynı sırayla gelir: 1. Daily günü Board 1, 2. günü Board 2. ' + metric[2],
+    const chart = section('Boards · play and completion',
+      'For the first ' + S.DAILY_BOARDS + ' Daily days, boards come in the same order for every player regardless of the calendar date: Daily day 1 is Board 1, day 2 is Board 2. ' + metric[2],
       chips + barChart({ categories: keys.map((b) => String(b + 1)), series: series(g, (m) => m.boardStats.map((s) => s[metric[0]])), pct: true, max: 1, tipLabel: (i) => 'Board ' + (i + 1) }),
       legend(g.names));
-    const milestones = section('Milestone hunisi', 'Katılımcılar içinde ulaşan; ödülü alan ise ulaşanlar içinde.',
+    const milestones = section('Milestone funnel', 'Reached among participants; claimed among those who reached it.',
       barRows(g, S.DAILY_MILESTONES.map((ms, i) => ({
-        name: ms.at + ' tamamlanan gün',
-        code: ms.coins + ' altın + booster',
+        name: ms.at + ' completed days',
+        code: ms.coins + ' coins + booster',
         get: (m) => m.milestones[i].reached,
         third: (m) => m.milestones[i].claimed,
-      })), { h1: 'Milestone', h2: 'Ulaşan', h3: 'Ödül alan' }));
+      })), { h1: 'Milestone', h2: 'Reached', h3: 'Claimed' }));
     const inPool = (b) => b >= S.DAILY_REPEAT_FROM;
-    const tbl = section('Board tablosu', 'Oynanma ve tamamlama ilk ' + S.DAILY_BOARDS + ' Daily günü içindir. Tekrar havuzu: ' + (S.DAILY_BOARDS + 1) + '. Daily gününden sonra Board ' + (S.DAILY_REPEAT_FROM + 1) + '–' + S.DAILY_BOARDS + ' yeniden oynatılır.',
+    const tbl = section('Board table', 'Play and completion cover the first ' + S.DAILY_BOARDS + ' Daily days. Repeat pool: from Daily day ' + (S.DAILY_BOARDS + 1) + ', Boards ' + (S.DAILY_REPEAT_FROM + 1) + '–' + S.DAILY_BOARDS + ' are replayed.',
       table(g, [
-        { h: 'Board', raw: (b) => 'Board ' + (b + 1) + (g.all.boardStats[b].players < 50 ? ' <span class="low">az örnek</span>' : '') },
-        { h: 'Limit', raw: (b) => '<span class="tag">' + (S.DAILY_LIMIT[b] === 'time' ? 'Süre' : 'Hamle') + '</span>' },
-        { h: 'Oynayan', get: (m, b) => m.boardStats[b].players, f: F.int },
-        { h: 'Oynanma', get: (m, b) => m.boardStats[b].reach, f: F.pct },
-        { h: 'Tamamlama', get: (m, b) => m.boardStats[b].done, f: F.pct },
-        { h: 'Deneme / oyuncu', get: (m, b) => m.boardStats[b].tries, f: F.dec2 },
-        { h: 'Limite takılma', get: (m, b) => m.boardStats[b].limit, f: F.pct },
-        { h: 'Devam', get: (m, b) => m.boardStats[b].cont, f: F.pct },
-        { h: 'Süre P50', get: (m, b) => m.boardStats[b].mins, f: F.min },
-        { h: 'Tekrar havuzu · oynanma', raw: (b) => (inPool(b) ? cell(g, (m) => m.boardStats[b].repeat, F.int) : '<span class="tag">Havuz dışı</span>') },
-        { h: 'Tekrar havuzu · tamamlama', raw: (b) => (inPool(b) ? cell(g, (m) => m.boardStats[b].repeatDone, F.pct) : '—') },
-      ], keys, { foot: 'Oynanma: Board 1’i oynayanların bu board’a ulaşma oranı · Tamamlama: board’u oynayan oyunculardan bitiren (retry dahil) · Limit: süre veya hamle · Devam: limite takılıp reklamla +30 sn / +5 hamle alan · Sıra kuralı: src/daily/model.js boardIndex. Seçili veride en uzun Daily serisi: ' + g.all.maxOrder + ' gün.' }));
+        { h: 'Board', raw: (b) => 'Board ' + (b + 1) + (g.all.boardStats[b].players < 50 ? ' <span class="low">low sample</span>' : '') },
+        { h: 'Limit', raw: (b) => '<span class="tag">' + (S.DAILY_LIMIT[b] === 'time' ? 'Time' : 'Moves') + '</span>' },
+        { h: 'Players', get: (m, b) => m.boardStats[b].players, f: F.int },
+        { h: 'Play rate', get: (m, b) => m.boardStats[b].reach, f: F.pct },
+        { h: 'Completion', get: (m, b) => m.boardStats[b].done, f: F.pct },
+        { h: 'Attempts / player', get: (m, b) => m.boardStats[b].tries, f: F.dec2 },
+        { h: 'Hit the limit', get: (m, b) => m.boardStats[b].limit, f: F.pct },
+        { h: 'Continue', get: (m, b) => m.boardStats[b].cont, f: F.pct },
+        { h: 'Time P50', get: (m, b) => m.boardStats[b].mins, f: F.min },
+        { h: 'Repeat pool · plays', raw: (b) => (inPool(b) ? cell(g, (m) => m.boardStats[b].repeat, F.int) : '<span class="tag">Not in pool</span>') },
+        { h: 'Repeat pool · completion', raw: (b) => (inPool(b) ? cell(g, (m) => m.boardStats[b].repeatDone, F.pct) : '—') },
+      ], keys, { foot: 'Play rate: share of Board 1 players who reached this board · Completion: finished among those who played (retries included) · Limit: time or moves · Continue: hit the limit and took +30 s / +5 moves with an ad · Time: daily_start to daily_end · Order rule: src/daily/model.js boardIndex. Longest Daily streak in the selection: ' + g.all.maxOrder + ' days.' }));
     return kpis + chart + milestones + tbl;
   }
 
   // ---------- 06 Event ----------
   // The game has no event system yet (src/meta/event-entry.js is a placeholder); the tab stays empty on purpose.
   function renderEvent() {
-    return '<div class="notice">Oyunda henüz event sistemi yok. Event sistemi eklendiğinde dashboard detayları oluşturulacaktır.</div>';
+    return '<div class="notice">The game has no event system yet. Dashboard details will be added once the event system exists.</div>';
   }
 
   // ---------- 07 Economy & Free ----------
   const SOURCES = [
-    ['level', 'Level ödülü'],
+    ['level', 'Level reward'],
     ['get2x', 'Get2X'],
-    ['board', 'Tahta temizleme'],
-    ['interstitial', 'Interstitial ödülü'],
+    ['board', 'Board clear'],
+    ['interstitial', 'Interstitial reward'],
     ['treasure', 'Treasure'],
     ['daily', 'Daily milestone'],
-    ['iap', 'Satın alma'],
+    ['iap', 'Purchase'],
   ];
   const SINKS = [
     ['burn', 'Burn'],
     ['move', 'Move'],
     ['fan', 'Fan'],
     ['extra', 'Extra'],
-    ['slot', 'Altınla slot'],
-    ['continue', 'Devam (fail)'],
-    ['refill', 'Can doldurma'],
+    ['slot', 'Slot with coins'],
+    ['continue', 'Continue (fail)'],
+    ['refill', 'Life refill'],
     ['daily_move', 'Daily · Move'],
     ['daily_magnet', 'Daily · Magnet'],
   ];
   const BOOSTERS = [['burn', 'Burn'], ['move', 'Move'], ['fan', 'Fan'], ['extra', 'Extra']];
-  const BOOSTER_SRC = [['start', 'Başlangıç / unlock'], ['coin', 'Altınla'], ['ad', 'Reklamla'], ['treasure', 'Treasure'], ['iap', 'Paket'], ['daily', 'Daily']];
-  const ZERO = [['refill', 'Altınla doldurdu'], ['ad', 'Reklamla +1 can'], ['market', 'Market’ten satın aldı'], ['wait', 'Bekledi (oturum bitti)']];
+  const BOOSTER_SRC = [['start', 'Start / unlock'], ['coin', 'With coins'], ['ad', 'With ads'], ['treasure', 'Treasure'], ['iap', 'Pack'], ['daily', 'Daily']];
+  const ZERO = [['refill', 'Refilled with coins'], ['ad', '+1 life with an ad'], ['market', 'Bought in the Market'], ['wait', 'Waited (session ended)']];
 
   function computeEconomy(ds) {
     const src = {};
@@ -2458,54 +2637,54 @@ td .low { color: var(--muted); font-size: 11px; }
   function renderEconomy() {
     const g = groupsFor(computeEconomy);
     const kpis = '<div class="kpis">'
-      + kpi(g, 'Kazanılan altın', (m) => m.earnPerDay, F.int, 'Aktif gün başına · tüm kaynaklar')
-      + kpi(g, 'Harcanan altın', (m) => m.spendPerDay, F.int, 'Aktif gün başına')
-      + kpi(g, 'Altını yetmeyen oyuncu', (m) => m.short, F.pct, 'En az bir kez satın alamadı')
-      + kpi(g, '0 cana düşen oyuncu', (m) => m.zeroShare, F.pct, (m) => F.int(m.zeroEvents) + ' kez')
+      + kpi(g, 'Coins earned', (m) => m.earnPerDay, F.int, 'Per active day · all sources')
+      + kpi(g, 'Coins spent', (m) => m.spendPerDay, F.int, 'Per active day')
+      + kpi(g, 'Players short of coins', (m) => m.short, F.pct, 'Could not afford at least once')
+      + kpi(g, 'Players reaching 0 lives', (m) => m.zeroShare, F.pct, (m) => F.int(m.zeroEvents) + ' times')
       + '</div>';
     const balSeries = state.compare
       ? series(g, (m) => m.balP50).map((s) => Object.assign(s, { name: s.name + ' P50' }))
       : [{ name: 'P50', values: g.all.balP50, color: 0 }, { name: 'P90', values: g.all.balP90, color: 1 }];
-    const balance = section('Level girişinde altın bakiyesi', state.compare ? 'P50, ' + g.names.join(' ve ') + '.' : 'P50 ve P90.',
+    const balance = section('Coin balance at level entry', state.compare ? 'P50, ' + g.names.join(' and ') + '.' : 'P50 and P90.',
       lineChart({ categories: g.all.lv.map((l) => 'L' + l), series: balSeries, fmt: F.int }),
       legend(balSeries.map((s) => s.name)));
     const flow = (list, key, total) => table(g, [
-      { h: 'Kalem', raw: (i) => list[i][1] },
-      { h: 'Toplam', get: (m, i) => m[key][list[i][0]] || 0, f: F.int },
-      { h: 'Aktif gün başına', get: (m, i) => ratio(m[key][list[i][0]] || 0, m.ad), f: F.dec },
-      { h: 'Pay', get: (m, i) => ratio(m[key][list[i][0]] || 0, m[total]), f: F.pct },
+      { h: 'Item', raw: (i) => list[i][1] },
+      { h: 'Total', get: (m, i) => m[key][list[i][0]] || 0, f: F.int },
+      { h: 'Per active day', get: (m, i) => ratio(m[key][list[i][0]] || 0, m.ad), f: F.dec },
+      { h: 'Share', get: (m, i) => ratio(m[key][list[i][0]] || 0, m[total]), f: F.pct },
     ], list.map((x, i) => i));
     const flows = '<div class="grid-2">'
-      + section('Altın kaynakları', '', flow(SOURCES, 'src', 'totalSrc'))
-      + section('Altın harcamaları', '', flow(SINKS, 'sink', 'totalSink'))
+      + section('Coin sources', '', flow(SOURCES, 'src', 'totalSrc'))
+      + section('Coin sinks', '', flow(SINKS, 'sink', 'totalSink'))
       + '</div>';
     const cols = [{ h: 'Booster', raw: (i) => BOOSTERS[i][1] }];
     for (const [s, name] of BOOSTER_SRC) cols.push({ h: name, get: (m, i) => m.bst[BOOSTERS[i][0]][s], f: F.int });
-    cols.push({ h: 'Kullanılan', get: (m, i) => m.bst[BOOSTERS[i][0]].used, f: F.int });
-    const boosters = section('Booster kazanımı ve kullanımı', 'Extra’da “Başlangıç” iki ücretsiz kullanımdır.', table(g, cols, [0, 1, 2, 3]));
-    const lives = section('Canlar', 'Can kaybı nedeni ve 0 cana düşünce ne oldu.',
+    cols.push({ h: 'Used', get: (m, i) => m.bst[BOOSTERS[i][0]].used, f: F.int });
+    const boosters = section('Booster earning and usage', 'For Extra, “Start” is the two free uses.', table(g, cols, [0, 1, 2, 3]));
+    const lives = section('Lives', 'Why lives were lost, and what happened at 0 lives.',
       barRows(g, [
-        { name: 'Kayıp · fail ekranını kapatma', get: (m) => ratio(m.lifeFail, m.lifeFail + m.lifeRestart), third: (m) => m.lifeFail, f3: F.int },
-        { name: 'Kayıp · Settings restart', get: (m) => ratio(m.lifeRestart, m.lifeFail + m.lifeRestart), third: (m) => m.lifeRestart, f3: F.int },
-      ].concat(ZERO.map(([k, name]) => ({ name: '0 can → ' + name, get: (m) => ratio(m.zero[k], m.zeroEvents), third: (m) => m.zero[k], f3: F.int })))
-        .concat([{ name: '0 can → bir daha dönmedi', get: (m) => ratio(m.zero.gone, m.zeroEvents), third: (m) => m.zero.gone, f3: F.int }]),
-      { h1: 'Durum', h2: 'Pay', h3: 'Adet' }));
-    const treasure = section('Free · Treasure', 'Saatlik 10 altın ve günlük reklam zinciri.',
+        { name: 'Lost · closed the fail screen', get: (m) => ratio(m.lifeFail, m.lifeFail + m.lifeRestart), third: (m) => m.lifeFail, f3: F.int },
+        { name: 'Lost · Settings restart', get: (m) => ratio(m.lifeRestart, m.lifeFail + m.lifeRestart), third: (m) => m.lifeRestart, f3: F.int },
+      ].concat(ZERO.map(([k, name]) => ({ name: '0 lives → ' + name, get: (m) => ratio(m.zero[k], m.zeroEvents), third: (m) => m.zero[k], f3: F.int })))
+        .concat([{ name: '0 lives → never returned', get: (m) => ratio(m.zero.gone, m.zeroEvents), third: (m) => m.zero.gone, f3: F.int }]),
+      { h1: 'Outcome', h2: 'Share', h3: 'Count' }));
+    const treasure = section('Free · Treasure', 'Hourly 10 coins and the daily ad chain.',
       barRows(g, [
-        { name: 'Ücretsiz 10 altın alan oyuncu', get: (m) => m.trUsers, third: (m) => ratio(m.tr.free, m.tr.days), f3: F.dec },
-        { name: 'Zincir 1 · 90 altın', get: (m) => ratio(m.tr.chain[0], m.tr.days) },
-        { name: 'Zincir 2 · Burn', get: (m) => ratio(m.tr.chain[1], m.tr.days) },
-        { name: 'Zincir 3 · 20 dk sınırsız can', get: (m) => ratio(m.tr.chain[2], m.tr.days) },
-        { name: 'Zincir 4 · Fan', get: (m) => ratio(m.tr.chain[3], m.tr.days) },
-      ], { h1: 'Adım', h2: 'Oran', h3: 'Gün başına' }));
+        { name: 'Players claiming the free 10 coins', get: (m) => m.trUsers, third: (m) => ratio(m.tr.free, m.tr.days), f3: F.dec },
+        { name: 'Chain 1 · 90 coins', get: (m) => ratio(m.tr.chain[0], m.tr.days) },
+        { name: 'Chain 2 · Burn', get: (m) => ratio(m.tr.chain[1], m.tr.days) },
+        { name: 'Chain 3 · 20 min infinite lives', get: (m) => ratio(m.tr.chain[2], m.tr.days) },
+        { name: 'Chain 4 · Fan', get: (m) => ratio(m.tr.chain[3], m.tr.days) },
+      ], { h1: 'Step', h2: 'Rate', h3: 'Per day' }));
     return kpis + balance + flows + boosters + '<div class="grid-2">' + lives + treasure + '</div>';
   }
 
   // ---------- 08 Permissions ----------
   const PERMS = [
-    ['att', 'ATT · reklam takibi', 'iOS'],
-    ['notif', 'Bildirim', 'iOS + Android'],
-    ['consent', 'Veri izni · KVKK/GDPR', 'İzin gereken ülkeler'],
+    ['att', 'ATT · ad tracking', 'iOS'],
+    ['notif', 'Notifications', 'iOS + Android'],
+    ['consent', 'Data consent · KVKK/GDPR', 'Countries requiring consent'],
   ];
   function computePermissions(ds) {
     const from = dayIndexOf(state.f.from);
@@ -2548,72 +2727,72 @@ td .low { color: var(--muted); font-size: 11px; }
 
   function renderPermissions() {
     const g = groupsFor(computePermissions);
-    const notice = '<div class="notice">İzin akışları Unity projesinde; bu branch’te henüz yok. Veriler sentetik. İznin sorulduğu an ve ön ekran gibi ayrıntılar Unity’deki gerçek akışa göre güncellenecek.</div>';
+    const notice = '<div class="notice">Permission flows live in the Unity project and are not on this branch yet. Data is synthetic. Details such as when each permission is asked and its pre-prompt will follow the real Unity flow.</div>';
     const kpis = '<div class="kpis">'
-      + kpi(g, 'ATT izni', (m) => m.att.granted, F.pct, (m) => 'iOS · sorulan ' + F.int(m.att.askedN) + ' oyuncu içinde')
-      + kpi(g, 'Bildirim izni', (m) => m.notif.granted, F.pct, (m) => 'Sorulan ' + F.int(m.notif.askedN) + ' oyuncu içinde')
-      + kpi(g, 'Veri izni · KVKK/GDPR', (m) => m.consent.granted, F.pct, (m) => 'Sorulan ' + F.int(m.consent.askedN) + ' oyuncu içinde')
-      + kpi(g, 'Bildirimi şu an açık', (m) => m.notif.current, F.pct, 'Sonradan ayarlardan değişenler dahil')
+      + kpi(g, 'ATT opt-in', (m) => m.att.granted, F.pct, (m) => 'iOS · among ' + F.int(m.att.askedN) + ' players asked')
+      + kpi(g, 'Notification opt-in', (m) => m.notif.granted, F.pct, (m) => 'Among ' + F.int(m.notif.askedN) + ' players asked')
+      + kpi(g, 'Data consent · KVKK/GDPR', (m) => m.consent.granted, F.pct, (m) => 'Among ' + F.int(m.consent.askedN) + ' players asked')
+      + kpi(g, 'Notifications on now', (m) => m.notif.current, F.pct, 'Including later changes in settings')
       + '</div>';
     const metric = PERMS.find((x) => x[0] === state.permMetric) || PERMS[0];
     const chips = '<div class="chips">' + PERMS.map((x) => '<button class="chip' + (x[0] === metric[0] ? ' on' : '') + '" data-action="permMetric" data-key="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>';
-    const chart = section('Kurulum gününe göre izin oranı', 'Her kurulum gününde, izin sorulan oyuncular içinde izin veren payı. Sürüm değişikliklerinin etkisi burada görünür.',
-      chips + barChart({ categories: g.all.days.map(shortDate), series: series(g, (m) => m[metric[0]].byDay), pct: true, max: 1, tipLabel: (i) => shortDate(g.all.days[i]) + '.2026 kurulumları' }),
+    const chart = section('Opt-in rate by install day', 'For each install day, the share of asked players who granted the permission. Version changes show up here.',
+      chips + barChart({ categories: g.all.days.map(shortDate), series: series(g, (m) => m[metric[0]].byDay), pct: true, max: 1, tipLabel: (i) => shortDate(g.all.days[i]) + '/2026 installs' }),
       legend(g.names));
     const keys = [0, 1, 2];
     const at = (i) => PERMS[i][0];
-    const effect = section('İzin verenler ve vermeyenler', 'Karşılaştırmadır, nedensellik değildir: daha bağlı oyuncular izin vermeye de daha yatkındır.',
+    const effect = section('Granted vs denied', 'A comparison, not causation: more engaged players are also more likely to grant.',
       table(g, [
-        { h: 'İzin', raw: (i) => PERMS[i][1] },
-        { h: 'D1 · veren', get: (m, i) => m[at(i)].d1Yes, f: F.pct },
-        { h: 'D1 · vermeyen', get: (m, i) => m[at(i)].d1No, f: F.pct },
-        { h: 'D7 · veren', get: (m, i) => m[at(i)].d7Yes, f: F.pct },
-        { h: 'D7 · vermeyen', get: (m, i) => m[at(i)].d7No, f: F.pct },
-        { h: 'ARPDAU · veren', get: (m, i) => m[at(i)].arpYes, f: F.usd3 },
-        { h: 'ARPDAU · vermeyen', get: (m, i) => m[at(i)].arpNo, f: F.usd3 },
+        { h: 'Permission', raw: (i) => PERMS[i][1] },
+        { h: 'D1 · granted', get: (m, i) => m[at(i)].d1Yes, f: F.pct },
+        { h: 'D1 · denied', get: (m, i) => m[at(i)].d1No, f: F.pct },
+        { h: 'D7 · granted', get: (m, i) => m[at(i)].d7Yes, f: F.pct },
+        { h: 'D7 · denied', get: (m, i) => m[at(i)].d7No, f: F.pct },
+        { h: 'ARPDAU · granted', get: (m, i) => m[at(i)].arpYes, f: F.usd3 },
+        { h: 'ARPDAU · denied', get: (m, i) => m[at(i)].arpNo, f: F.usd3 },
       ], keys));
     return notice + kpis + chart + effect;
   }
 
   // ---------- shell ----------
   const RENDER = {
-    onboarding: [renderOnboarding, 'Kurulumdan ilk 10 level’a kadar oyuncuların hangi event’i tamamlayıp nerede koptuğu.'],
-    overview: [renderOverview, 'Kurulum, aktif kullanıcı, retention ve gelir.'],
-    level: [renderLevel, 'Level bazında zorluk, yardım kullanımı, ödeme ve kayıp.'],
-    ads: [renderAds, 'Rewarded yerleşimleri, interstitial ve banner.'],
-    market: [renderMarket, 'IAP geliri, teklifler, ürünler ve Market’e giriş noktaları.'],
-    daily: [renderDaily, 'Daily Challenge katılımı, board zorluğu ve milestone’lar.'],
+    onboarding: [renderOnboarding, 'Which events players complete from install through the first 10 levels, and where they drop.'],
+    overview: [renderOverview, 'Installs, active users, sessions, retention and revenue.'],
+    level: [renderLevel, 'Per-level difficulty, deals, help usage, payments and churn.'],
+    ads: [renderAds, 'Rewarded placements, interstitials and banner.'],
+    market: [renderMarket, 'IAP revenue, offers, products and Market entry points.'],
+    daily: [renderDaily, 'Daily Challenge participation, board difficulty and milestones.'],
     event: [renderEvent, ''],
-    economy: [renderEconomy, 'Altın, booster, can ve Treasure akışı.'],
-    permissions: [renderPermissions, 'ATT, bildirim ve veri izni (KVKK/GDPR): kimden istendi, kim verdi.'],
+    economy: [renderEconomy, 'Coins, boosters, lives and Treasure flow.'],
+    permissions: [renderPermissions, 'ATT, notifications and data consent (KVKK/GDPR): who was asked and who granted.'],
   };
 
   function filterBar() {
     const f = state.f;
     const opt = (key, options) => '<select data-filter="' + key + '">' + options.map((o) => '<option value="' + o[0] + '"' + (String(f[key]) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>';
     let html = '<div class="card filters"><div class="filter-row">'
-      + '<div class="field"><label>Kurulum kohortu</label><div class="range"><input type="date" data-filter="from" value="' + f.from + '" min="2026-09-01" max="2026-09-30"> – <input type="date" data-filter="to" value="' + f.to + '" min="2026-09-01" max="2026-09-30"></div></div>'
-      + (state.compare === 'acq' ? '' : '<div class="field"><label>Edinim</label>' + opt('acq', [['all', 'Paid + Organik'], ['paid', 'Paid'], ['organic', 'Organik']]) + '</div>')
-      + (state.compare === 'payer' ? '' : '<div class="field"><label>Ödeme durumu</label>' + opt('payerType', [['all', 'Payer + Non-payer'], ['payer', 'Payer'], ['nonpayer', 'Non-payer']]) + '</div>')
+      + '<div class="field"><label>Install cohort</label><div class="range"><input type="date" data-filter="from" value="' + f.from + '" min="2026-09-01" max="2026-09-30"> – <input type="date" data-filter="to" value="' + f.to + '" min="2026-09-01" max="2026-09-30"></div></div>'
+      + (state.compare === 'acq' ? '' : '<div class="field"><label>Acquisition</label>' + opt('acq', [['all', 'Paid + Organic'], ['paid', 'Paid'], ['organic', 'Organic']]) + '</div>')
+      + (state.compare === 'payer' ? '' : '<div class="field"><label>Payer status</label>' + opt('payerType', [['all', 'Payer + Non-payer'], ['payer', 'Payer'], ['nonpayer', 'Non-payer']]) + '</div>')
       + '<div class="field"><label>Platform</label>' + opt('platform', [['all', 'iOS + Android'], ['ios', 'iOS'], ['android', 'Android']]) + '</div>'
-      + '<div class="field"><label>Ülke</label>' + opt('country', [['all', 'Tüm ülkeler'], ['TR', 'Türkiye'], ['US', 'ABD'], ['DE', 'Almanya'], ['BR', 'Brezilya'], ['OTHER', 'Diğer']]) + '</div>'
+      + '<div class="field"><label>Country</label>' + opt('country', [['all', 'All countries'], ['TR', 'Turkey'], ['US', 'USA'], ['DE', 'Germany'], ['BR', 'Brazil'], ['OTHER', 'Other']]) + '</div>'
       + versionFields(opt);
     if (state.tab === 'level') {
-      html += '<div class="field"><label>Level’a giriş günü</label>' + opt('entryDay', [['all', 'Tüm günler'], ['d0', 'D0'], ['d1', 'D1–3'], ['d4', 'D4–7'], ['d8', 'D8+']]) + '</div>'
-        + '<div class="field"><label>Level’a girişte ödeme</label>' + opt('payer', [['all', 'Payer + Non-payer'], ['payer', 'Payer'], ['nonpayer', 'Non-payer']]) + '</div>'
-        + '<div class="field"><label>Persentil</label>' + opt('pct', [['50', 'P50'], ['75', 'P75'], ['90', 'P90'], ['99', 'P99']]) + '</div>'
-        + '<div class="field"><label>Level aralığı</label><div class="range"><input type="number" min="1" max="60" data-filter="lvFrom" value="' + f.lvFrom + '"> – <input type="number" min="1" max="60" data-filter="lvTo" value="' + f.lvTo + '"></div></div>';
+      html += '<div class="field"><label>Level entry day</label>' + opt('entryDay', [['all', 'All days'], ['d0', 'D0'], ['d1', 'D1–3'], ['d4', 'D4–7'], ['d8', 'D8+']]) + '</div>'
+        + '<div class="field"><label>Payer at level entry</label>' + opt('payer', [['all', 'Payer + Non-payer'], ['payer', 'Payer'], ['nonpayer', 'Non-payer']]) + '</div>'
+        + '<div class="field"><label>Percentile</label>' + opt('pct', [['50', 'P50'], ['75', 'P75'], ['90', 'P90'], ['99', 'P99']]) + '</div>'
+        + '<div class="field"><label>Level range</label><div class="range"><input type="number" min="1" max="' + S.MAX_LEVEL + '" data-filter="lvFrom" value="' + f.lvFrom + '"> – <input type="number" min="1" max="' + S.MAX_LEVEL + '" data-filter="lvTo" value="' + f.lvTo + '"></div></div>';
     }
     const inFilter = S.players.filter((p) => playerPass(p, f));
     const count = state.compare === 'version'
-      ? [state.verA, state.verB].map((v) => v + ': ' + F.int(inFilter.filter((p) => p.version === v).length)).join(' · ') + ' oyuncu'
-      : F.int(inFilter.length) + ' oyuncu';
-    const modes = [['none', 'Yok'], ['acq', 'Paid vs Organik'], ['payer', 'Payer vs Non-payer']];
-    if (state.tab === 'onboarding') modes.push(['version', 'Sürüm A vs B']);
+      ? [state.verA, state.verB].map((v) => v + ': ' + F.int(inFilter.filter((p) => p.version === v).length)).join(' · ') + ' players'
+      : F.int(inFilter.length) + ' players';
+    const modes = [['none', 'None'], ['acq', 'Paid vs Organic'], ['payer', 'Payer vs Non-payer']];
+    if (state.tab === 'onboarding') modes.push(['version', 'Version A vs B']);
     const current = state.compare || 'none';
-    html += '</div><div class="filter-foot"><div class="sample">' + count + ' · gözlem sonu ' + shortDate(S.OBS_END) + '.2026 · sentetik veri' + (f.payerType !== 'all' || state.compare === 'payer' ? ' · Payer: gözlem süresinde en az 1 satın alma' : '') + '</div>'
-      + '<div class="toolbar"><span class="sample">Kırılım</span><div class="seg">' + modes.map((m) => '<button data-action="compare" data-key="' + m[0] + '" class="' + (m[0] === current ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div>'
-      + '<button class="btn" data-action="reset">Sıfırla</button></div></div></div>';
+    html += '</div><div class="filter-foot"><div class="sample">' + count + ' · observation ends ' + shortDate(S.OBS_END) + '/2026 · synthetic data' + (f.payerType !== 'all' || state.compare === 'payer' ? ' · Payer: at least 1 purchase in the observation window' : '') + '</div>'
+      + '<div class="toolbar"><span class="sample">Split</span><div class="seg">' + modes.map((m) => '<button data-action="compare" data-key="' + m[0] + '" class="' + (m[0] === current ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div>'
+      + '<button class="btn" data-action="reset">Reset</button></div></div></div>';
     return html;
   }
 
@@ -2621,11 +2800,11 @@ td .low { color: var(--muted); font-size: 11px; }
   // In the version split the single version filter becomes two pickers, A and B.
   function versionFields(opt) {
     if (state.compare !== 'version') {
-      return '<div class="field"><label>Sürüm</label>' + opt('version', [['all', 'Tüm sürümler']].concat(VERSIONS.map((v) => [v, v]))) + '</div>';
+      return '<div class="field"><label>Version</label>' + opt('version', [['all', 'All versions']].concat(VERSIONS.map((v) => [v, v]))) + '</div>';
     }
     const pick = (key) => '<select data-state="' + key + '">' + VERSIONS.map((v) => '<option value="' + v + '"' + (state[key] === v ? ' selected' : '') + '>' + v + '</option>').join('') + '</select>';
-    return '<div class="field"><label><i class="dot paid"></i>Sürüm A</label>' + pick('verA') + '</div>'
-      + '<div class="field"><label><i class="dot organic"></i>Sürüm B</label>' + pick('verB') + '</div>';
+    return '<div class="field"><label><i class="dot paid"></i>Version A</label>' + pick('verA') + '</div>'
+      + '<div class="field"><label><i class="dot organic"></i>Version B</label>' + pick('verB') + '</div>';
   }
 
   function renderNav() {
